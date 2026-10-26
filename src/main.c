@@ -1,0 +1,54 @@
+/* Logix driver: lexer -> parser -> AST -> semantic -> TAC */
+#include <stdio.h>
+#include <string.h>
+#include "ast/ast.h"
+#include "semantic/semantic.h"
+#include "symtab/symtab.h"
+#include "icg/icg.h"
+
+extern FILE *yyin;
+extern int yyparse(void);
+extern int lexical_errors;
+extern int syntax_errors;
+extern Node *ast_root;
+
+int main(int argc, char **argv) {
+    int show_ast = 0, show_symtab = 0;
+    const char *path = NULL;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--ast") == 0) show_ast = 1;
+        else if (strcmp(argv[i], "--symtab") == 0) show_symtab = 1;
+        else path = argv[i];
+    }
+    if (!path) {
+        fprintf(stderr, "Usage: %s <source.mc> [--ast] [--symtab]\n", argv[0]);
+        return 2;
+    }
+    yyin = fopen(path, "r");
+    if (!yyin) {
+        perror(path);
+        return 2;
+    }
+    yyparse();
+    fclose(yyin);
+
+    if (lexical_errors || syntax_errors) {
+        fprintf(stderr, "Compilation failed: %d lexical error(s), %d syntax error(s)\n",
+                lexical_errors, syntax_errors);
+        return 1;
+    }
+    if (show_ast) ast_print(ast_root, 0);
+
+    int sem_errors = semantic_check(ast_root);
+    if (sem_errors) {
+        fprintf(stderr, "Compilation failed: %d semantic error(s)\n", sem_errors);
+        return 1;
+    }
+    if (show_symtab) st_dump();
+
+    /* Final phase: Three Address Code goes to stdout (redirect with > file.tac) */
+    tac_generate(ast_root, stdout);
+    fprintf(stderr, "Compilation successful: TAC generated.\n");
+    return 0;
+}
