@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logix | Account</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070A08;
+  --panel: #0D1410;
+  --panel-head: #0A110D;
+  --line: #1E3A2D;
+  --green: #34C47C;
+  --green-dark: #0F3D2B;
+  --text: #FFFFFF;
+  --muted: #B7C4BC;
+  --dim: #5E7A6B;
+  --error: #FF6B6B;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+a { color: var(--text); text-decoration: none; }
+a:hover { color: var(--green); }
+
+/* ---------- Header (same as the other pages) ---------- */
+header { border-bottom: 1px solid var(--line); }
+.header-inner { max-width: 1200px; margin: 0 auto; padding: 20px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px; }
+.brand { display: flex; align-items: center; gap: 12px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.5px; }
+.main-nav { display: flex; flex-wrap: wrap; gap: 8px 28px; flex-grow: 1; font-size: 15px; }
+.account-nav { display: flex; align-items: center; gap: 20px; font-size: 15px; }
+.account-nav a.account { display: inline-block; padding: 11px 20px; font-size: 15px; font-weight: 500; background: var(--green-dark); border: 1px solid var(--green); border-radius: 8px; color: var(--text); }
+.account-nav a.account:hover { color: var(--text); background: #145238; }
+
+/* ---------- Auth form ---------- */
+main { max-width: 760px; margin: 0 auto; padding: 56px 24px 80px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 32px; margin-bottom: 24px; }
+h1.page { margin: 0 0 10px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; letter-spacing: -1px; }
+h2 { margin: 0 0 6px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 24px; letter-spacing: -0.5px; }
+.lead { margin: 0 0 28px; font-size: 16px; line-height: 1.6; color: var(--muted); }
+.field { margin-bottom: 18px; }
+.field label { display: block; margin-bottom: 8px; font-size: 15px; color: var(--muted); }
+.field input {
+  width: 100%; padding: 14px 16px; font: 400 16px 'Inter', sans-serif; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px; outline: none;
+}
+.field input::placeholder { color: var(--dim); }
+.field input:focus { border-color: var(--green); }
+.field input[aria-invalid="true"] { border-color: var(--error); }
+.err { margin: 8px 0 0; min-height: 0; font-size: 14px; color: var(--error); }
+.err:empty { display: none; }
+.notice { margin: 0 0 20px; padding: 12px 16px; font-size: 15px; line-height: 1.5; border-radius: 10px; }
+.notice.ok { color: var(--text); background: var(--green-dark); border: 1px solid var(--green); }
+.notice.bad { color: var(--error); border: 1px solid var(--error); }
+.notice:empty { display: none; }
+button#submit {
+  width: 100%; margin-top: 6px; padding: 14px 24px; font: 500 17px 'Inter', sans-serif; color: var(--text); cursor: pointer;
+  background: var(--green-dark); border: 1px solid var(--green); border-radius: 10px;
+}
+button#submit:hover { background: #145238; }
+button#submit:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+button#submit:disabled { opacity: .6; cursor: wait; }
+.switch { margin: 24px 0 0; text-align: center; font-size: 15px; color: var(--muted); }
+.switch a { color: var(--green); }
+.switch a:hover { text-decoration: underline; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; }
+.stat .num { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 40px; color: var(--green); line-height: 1.1; }
+.stat .lbl { margin-top: 6px; font-size: 15px; color: var(--muted); }
+.field select {
+  width: 100%; padding: 14px 40px 14px 16px; font: 400 16px 'Inter', sans-serif; color: var(--text);
+  background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23FFFFFF' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 16px center;
+  border: 1px solid var(--line); border-radius: 10px; outline: none; appearance: none; -webkit-appearance: none; cursor: pointer;
+}
+.field select:focus { border-color: var(--green); }
+.field select option { background: var(--panel); }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+button.save { padding: 14px 28px; font: 500 16px 'Inter', sans-serif; color: var(--text); cursor: pointer; background: var(--green-dark); border: 1px solid var(--green); border-radius: 10px; }
+button.save:hover { background: #145238; }
+button.save:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+button.save:disabled { opacity: .6; cursor: wait; }
+.logout { text-align: center; font-size: 15px; }
+.logout a { color: var(--muted); }
+.logout a:hover { color: var(--green); }
+[hidden] { display: none !important; }
+@media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+<div class="header-inner">
+<a href="index.html" class="brand">
+<svg width="38" height="38" viewBox="0 0 64 64" role="img" aria-label="Logix mark"><rect x="1" y="1" width="62" height="62" rx="15" fill="#0F3D2B" stroke="#34C47C" stroke-width="2"></rect><line x1="23" y1="16" x2="23" y2="46" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"></line><line x1="35" y1="46" x2="48" y2="46" stroke="#34C47C" stroke-width="8" stroke-linecap="round"></line></svg>
+Logix
+</a>
+<nav class="main-nav">
+<a href="index.html">Home</a>
+<a href="c.html">Compiler</a>
+<a href="download.html">Download</a>
+<a href="Contactus.html">Contact</a>
+</nav>
+<nav class="account-nav">
+<a href="login.html" class="account"><span>Account</span></a>
+</nav>
+</div>
+</header>
+
+<main>
+<h1 class="page">Account</h1>
+<p class="lead" id="hello">Your profile and activity.</p>
+
+<div class="stats">
+<div class="stat"><div class="num" id="stat-runs">-</div><div class="lbl">Programs run</div></div>
+<div class="stat"><div class="num" id="stat-files">-</div><div class="lbl">Files downloaded</div></div>
+</div>
+
+<section class="card">
+<h2>Profile</h2>
+<p class="lead">Update your name, email and preferred language.</p>
+<div class="notice" data-notice role="alert"></div>
+<form id="profileForm" novalidate>
+<div class="row">
+<div class="field">
+<label for="name">Name</label>
+<input id="name" name="name" type="text" autocomplete="name">
+<p class="err" data-err="name"></p>
+</div>
+<div class="field">
+<label for="email">Email</label>
+<input id="email" name="email" type="email" autocomplete="email">
+<p class="err" data-err="email"></p>
+</div>
+</div>
+<div class="field">
+<label for="lang">Preferred language</label>
+<select id="lang" name="lang">
+<option value="C">C</option>
+<option value="C++">C++</option>
+<option value="Java">Java</option>
+</select>
+<p class="err" data-err="lang"></p>
+</div>
+<button class="save" type="submit">Save changes</button>
+</form>
+</section>
+
+<section class="card">
+<h2>Change password</h2>
+<p class="lead">Use at least 8 characters.</p>
+<div class="notice" data-notice role="alert"></div>
+<form id="passwordForm" novalidate>
+<div class="row">
+<div class="field">
+<label for="currentPassword">Current password</label>
+<input id="currentPassword" name="currentPassword" type="password" autocomplete="current-password">
+<p class="err" data-err="currentPassword"></p>
+</div>
+<div class="field">
+<label for="newPassword">New password</label>
+<input id="newPassword" name="newPassword" type="password" autocomplete="new-password">
+<p class="err" data-err="newPassword"></p>
+</div>
+</div>
+<button class="save" type="submit">Update password</button>
+</form>
+</section>
+
+<p class="logout"><a href="logout.html">Log out</a></p>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+(function () {
+  // Account page is for logged-in users only (sends them to login.html and back here).
+  if (!Logix.requireLogin()) return;
+
+  var isEmail = function (v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); };
+  var profileForm = document.getElementById("profileForm");
+  var passwordForm = document.getElementById("passwordForm");
+
+  /* ---------- small form helpers (each form has its own notice + per-field errors) ---------- */
+  function noticeOf(form) { return form.parentNode.querySelector("[data-notice]"); }
+  function setNotice(form, msg, kind) { var n = noticeOf(form); n.textContent = msg || ""; n.className = "notice" + (kind ? " " + kind : ""); }
+  function fieldError(form, name, msg) {
+    var out = form.querySelector('[data-err="' + name + '"]'), input = form.elements[name];
+    if (!out || !input) return false;
+    out.textContent = msg || "";
+    if (msg) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
+    return !!msg;
+  }
+  function clearErrors(form) {
+    Array.prototype.forEach.call(form.elements, function (el) { if (el.name) fieldError(form, el.name, ""); });
+    setNotice(form, "");
+  }
+  // Server messages ({errors:{field:msg}}) go under the matching field, anything else on top.
+  function showServerError(form, err, fallbackField) {
+    var shown = false;
+    if (err && err.errors) Object.keys(err.errors).forEach(function (k) { shown = fieldError(form, k, err.errors[k]) || shown; });
+    if (!shown && fallbackField && err && err.status === 400) shown = fieldError(form, fallbackField, err.message);
+    if (!shown) setNotice(form, (err && err.message) || "Something went wrong. Try again.", "bad");
+  }
+  function run(form, busyText, task) {
+    var btn = form.querySelector("button"), label = btn.textContent;
+    btn.disabled = true; btn.textContent = busyText;
+    task().then(null, function (err) { showServerError(form, err, form === passwordForm ? "currentPassword" : null); })
+          .then(function () { btn.disabled = false; btn.textContent = label; });
+  }
+
+  /* ---------- show the user ---------- */
+  function fill(user) {
+    if (!user) return;
+    document.getElementById("hello").textContent = user.name ? "Hello, " + user.name + "." : "Your profile and activity.";
+    document.getElementById("stat-runs").textContent = user.runs != null ? user.runs : 0;
+    document.getElementById("stat-files").textContent = user.files != null ? user.files : 0;
+    profileForm.elements.name.value = user.name || "";
+    profileForm.elements.email.value = user.email || "";
+    profileForm.elements.lang.value = user.lang || "C";
+  }
+  fill(Logix.getUser());                                   // instant, from the last visit
+  Logix.me().then(fill).catch(function (err) {            // fresh from the server (a 401 already redirects to login)
+    setNotice(profileForm, err.message, "bad");
+  });
+
+  /* ---------- profile ---------- */
+  profileForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = profileForm.elements, name = f.name.value.trim(), email = f.email.value.trim();
+    clearErrors(profileForm);
+    var bad = false;
+    if (!name) bad = fieldError(profileForm, "name", "Please enter your name.") || bad;
+    if (!email) bad = fieldError(profileForm, "email", "Please enter your email.") || bad;
+    else if (!isEmail(email)) bad = fieldError(profileForm, "email", "Please enter a valid email.") || bad;
+    if (bad) return;
+
+    run(profileForm, "Saving...", function () {
+      return Logix.updateProfile({ name: name, email: email, lang: f.lang.value }).then(function (user) {
+        fill(user);
+        setNotice(profileForm, "Your changes are saved.", "ok");
+      });
+    });
+  });
+
+  /* ---------- password ---------- */
+  passwordForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = passwordForm.elements, cur = f.currentPassword.value, next = f.newPassword.value;
+    clearErrors(passwordForm);
+    var bad = false;
+    if (!cur) bad = fieldError(passwordForm, "currentPassword", "Please enter your current password.") || bad;
+    if (next.length < 8) bad = fieldError(passwordForm, "newPassword", "New password must be at least 8 characters.") || bad;
+    else if (next === cur) bad = fieldError(passwordForm, "newPassword", "New password must be different.") || bad;
+    if (bad) return;
+
+    run(passwordForm, "Updating...", function () {
+      return Logix.changePassword(cur, next).then(function () {
+        passwordForm.reset();
+        setNotice(passwordForm, "Password updated.", "ok");
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
