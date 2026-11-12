@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logix | Download</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070A08;
+  --panel: #0D1410;
+  --panel-head: #0A110D;
+  --line: #1E3A2D;
+  --green: #34C47C;
+  --green-dark: #0F3D2B;
+  --text: #FFFFFF;
+  --muted: #B7C4BC;
+  --dim: #5E7A6B;
+  --error: #FF6B6B;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+a { color: var(--text); text-decoration: none; }
+a:hover { color: var(--green); }
+
+/* ---------- Header (same as the compiler pages) ---------- */
+header { border-bottom: 1px solid var(--line); }
+.header-inner { max-width: 1200px; margin: 0 auto; padding: 20px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px; }
+.brand { display: flex; align-items: center; gap: 12px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.5px; }
+.main-nav { display: flex; flex-wrap: wrap; gap: 8px 28px; flex-grow: 1; font-size: 15px; }
+.main-nav a.active { color: var(--green); }
+.account-nav { display: flex; align-items: center; gap: 20px; font-size: 15px; }
+.account-nav a.account { display: inline-block; padding: 11px 20px; font-size: 15px; font-weight: 500; background: var(--green-dark); border: 1px solid var(--green); border-radius: 8px; color: var(--text); }
+.account-nav a.account:hover { color: var(--text); background: #145238; }
+
+/* ---------- Download ---------- */
+main { max-width: 760px; margin: 0 auto; padding: 56px 24px 72px; }
+h1 { margin: 0 0 10px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; letter-spacing: -1px; }
+.lead { margin: 0 0 32px; font-size: 17px; line-height: 1.6; color: var(--muted); }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 22px; background: var(--panel-head); border-bottom: 1px solid var(--line); font-weight: 500; font-size: 16px; }
+.filename { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 400; color: var(--muted); }
+.meta { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--green); }
+pre#preview { margin: 0; padding: 20px 22px; max-height: 240px; overflow: auto; font: 14px/24px 'JetBrains Mono', monospace; color: var(--text); tab-size: 4; }
+
+.section { padding: 24px 22px; border-top: 1px solid var(--line); }
+.section h2 { margin: 0 0 14px; font-size: 15px; font-weight: 500; color: var(--muted); }
+.formats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.fmt { position: relative; display: block; cursor: pointer; }
+.fmt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.fmt .opt { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.fmt .opt b { font-weight: 500; font-size: 16px; }
+.fmt .opt span { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--muted); }
+.fmt input:checked + .opt { border-color: var(--green); background: var(--green-dark); }
+.fmt input:focus-visible + .opt { outline: 2px solid var(--green); outline-offset: 2px; }
+
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+button#dl, a.btn { display: inline-block; padding: 14px 34px; font: 500 17px 'Inter', sans-serif; color: var(--text); cursor: pointer; background: var(--green-dark); border: 1px solid var(--green); border-radius: 10px; }
+button#dl:hover, a.btn:hover { background: #145238; color: var(--text); }
+button#dl:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+#status { font-size: 15px; color: var(--muted); }
+#status.error { color: var(--error); }
+
+.empty { padding: 48px 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 20px; }
+.empty p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+<div class="header-inner">
+<a href="index.html" class="brand">
+<svg width="38" height="38" viewBox="0 0 64 64" role="img" aria-label="Logix mark"><rect x="1" y="1" width="62" height="62" rx="15" fill="#0F3D2B" stroke="#34C47C" stroke-width="2"></rect><line x1="23" y1="16" x2="23" y2="46" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"></line><line x1="35" y1="46" x2="48" y2="46" stroke="#34C47C" stroke-width="8" stroke-linecap="round"></line></svg>
+Logix
+</a>
+<nav class="main-nav">
+<a href="index.html">Home</a>
+<a href="c.html" id="compilerLink">Compiler</a>
+<a href="download.html" class="active">Download</a>
+<a href="Contactus.html">Contact</a>
+</nav>
+<nav class="account-nav">
+<a href="login.html" class="account"><span>Account</span></a>
+</nav>
+</div>
+</header>
+
+<main>
+<h1>Download</h1>
+<p class="lead">Save the program you wrote in the compiler as a source file, a text file or a PDF.</p>
+
+<!-- Shown when a program was found -->
+<section class="card" id="ready" hidden>
+<div class="card-head"><span class="filename" id="fileName"></span><span class="meta" id="meta"></span></div>
+<pre id="preview"></pre>
+<div class="section">
+<h2>Choose a format</h2>
+<div class="formats" id="formats"></div>
+</div>
+<div class="section actions">
+<button id="dl" type="button">Download</button>
+<span id="status" role="status" aria-live="polite"></span>
+</div>
+</section>
+
+<!-- Shown when nothing was written yet -->
+<section class="card" id="none" hidden>
+<div class="empty">
+<p>There is no code to download yet. Open the compiler, write a program, then come back here.</p>
+<a class="btn" href="c.html">Open the compiler</a>
+</div>
+</section>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+(function () {
+  var PAGES = { c: "c.html", cpp: "cpp.html", java: "java.html" };
+
+  /* ---------- Read what the compiler page saved ---------- */
+  var data = null;
+  try { data = JSON.parse(localStorage.getItem("logix_current")); } catch (e) { }
+  var valid = data && typeof data.code === "string" && data.code.trim() &&
+              typeof data.fileName === "string" && /^[A-Za-z0-9_]+\.(c|cpp|java)$/.test(data.fileName);
+
+  if (!valid) { document.getElementById("none").hidden = false; return; }
+
+  var dot = data.fileName.lastIndexOf(".");
+  var base = data.fileName.slice(0, dot), ext = data.fileName.slice(dot + 1);
+  var lines = data.code.split("\n").length;
+
+  document.getElementById("ready").hidden = false;
+  document.getElementById("compilerLink").setAttribute("href", PAGES[ext]);
+  document.getElementById("fileName").textContent = data.fileName;
+  document.getElementById("meta").textContent = String(data.language) + " | " + lines + (lines === 1 ? " line" : " lines");
+  document.getElementById("preview").textContent = data.code;
+
+  /* ---------- Format options ---------- */
+  var FORMATS = [
+    { id: "src", title: "Source file", ext: ext },
+    { id: "txt", title: "Text file", ext: "txt" },
+    { id: "pdf", title: "PDF document", ext: "pdf" }
+  ];
+  var box = document.getElementById("formats");
+  FORMATS.forEach(function (f, i) {
+    var label = document.createElement("label");
+    label.className = "fmt";
+    label.innerHTML = '<input type="radio" name="fmt" value="' + f.id + '"' + (i === 0 ? " checked" : "") + '>' +
+                      '<div class="opt"><b></b><span></span></div>';
+    label.querySelector("b").textContent = f.title;
+    label.querySelector("span").textContent = base + "." + f.ext;
+    box.appendChild(label);
+  });
+
+  /* ---------- Minimal PDF writer (plain text, Courier) ---------- */
+  function makePdf(text) {
+    var W = 595, H = 842, M = 50, SIZE = 10, LEAD = 12;
+    var perLine = Math.floor((W - 2 * M) / (SIZE * 0.6));      // Courier glyph = 0.6 em
+    var perPage = Math.floor((H - 2 * M) / LEAD);
+
+    var rows = [];
+    text.replace(/\r\n?/g, "\n").split("\n").forEach(function (line) {
+      line = line.replace(/\t/g, "    ").replace(/[^\x20-\x7E]/g, "?");
+      do { rows.push(line.slice(0, perLine)); line = line.slice(perLine); } while (line.length);
+    });
+
+    var pages = [];
+    for (var i = 0; i < rows.length; i += perPage) pages.push(rows.slice(i, i + perPage));
+
+    function esc(s) { return s.replace(/[\\()]/g, "\\$&"); }
+
+    var objs = [];                                              // objs[n-1] = body of object n
+    objs[0] = "<< /Type /Catalog /Pages 2 0 R >>";
+    objs[2] = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>";
+    var kids = [];
+    pages.forEach(function (rowsOnPage, p) {
+      var pageNo = 4 + p * 2, contentNo = pageNo + 1;
+      kids.push(pageNo + " 0 R");
+      var stream = "BT /F1 " + SIZE + " Tf " + LEAD + " TL " + M + " " + (H - M) + " Td\n" +
+                   rowsOnPage.map(function (r) { return "(" + esc(r) + ") Tj T*"; }).join("\n") + "\nET";
+      objs[pageNo - 1] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + W + " " + H + "] " +
+                         "/Resources << /Font << /F1 3 0 R >> >> /Contents " + contentNo + " 0 R >>";
+      objs[contentNo - 1] = "<< /Length " + stream.length + " >>\nstream\n" + stream + "\nendstream";
+    });
+    objs[1] = "<< /Type /Pages /Kids [" + kids.join(" ") + "] /Count " + kids.length + " >>";
+
+    var out = "%PDF-1.4\n", offsets = [];
+    objs.forEach(function (body, n) {
+      offsets.push(out.length);
+      out += (n + 1) + " 0 obj\n" + body + "\nendobj\n";
+    });
+    var xref = out.length;
+    out += "xref\n0 " + (objs.length + 1) + "\n0000000000 65535 f \n";
+    offsets.forEach(function (o) { out += ("0000000000" + o).slice(-10) + " 00000 n \n"; });
+    out += "trailer\n<< /Size " + (objs.length + 1) + " /Root 1 0 R >>\nstartxref\n" + xref + "\n%%EOF";
+
+    var bytes = new Uint8Array(out.length);                     // all ASCII
+    for (var k = 0; k < out.length; k++) bytes[k] = out.charCodeAt(k);
+    return new Blob([bytes], { type: "application/pdf" });
+  }
+
+  /* ---------- Download ---------- */
+  var status = document.getElementById("status");
+  function say(msg, isError) { status.textContent = msg; status.className = isError ? "error" : ""; }
+
+  document.getElementById("dl").addEventListener("click", function () {
+    // Same rule as the rest of the site: downloads need a login (set in js/api.js).
+    if (Logix.CONFIG.DOWNLOAD_REQUIRES_LOGIN && !Logix.requireLogin()) return;
+
+    var id = document.querySelector('input[name="fmt"]:checked').value;
+    var fmt = FORMATS.filter(function (f) { return f.id === id; })[0];
+    var name = base + "." + fmt.ext;
+
+    var blob = fmt.id === "pdf" ? makePdf(data.code)
+                                : new Blob([data.code], { type: "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    say("Downloaded " + name);
+
+    // Count it on the account page. The file is already saved, so a server problem is ignored.
+    if (Logix.isLoggedIn()) {
+      Logix.logDownload({ fileName: name, language: data.language, code: data.code }).catch(function () { });
+    }
+  });
+})();
+</script>
+</body>
+</html>

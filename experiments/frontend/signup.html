@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logix | Sign up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070A08;
+  --panel: #0D1410;
+  --panel-head: #0A110D;
+  --line: #1E3A2D;
+  --green: #34C47C;
+  --green-dark: #0F3D2B;
+  --text: #FFFFFF;
+  --muted: #B7C4BC;
+  --dim: #5E7A6B;
+  --error: #FF6B6B;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+a { color: var(--text); text-decoration: none; }
+a:hover { color: var(--green); }
+
+/* ---------- Header (same as the other pages) ---------- */
+header { border-bottom: 1px solid var(--line); }
+.header-inner { max-width: 1200px; margin: 0 auto; padding: 20px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px; }
+.brand { display: flex; align-items: center; gap: 12px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.5px; }
+.main-nav { display: flex; flex-wrap: wrap; gap: 8px 28px; flex-grow: 1; font-size: 15px; }
+.account-nav { display: flex; align-items: center; gap: 20px; font-size: 15px; }
+.account-nav a.account { display: inline-block; padding: 11px 20px; font-size: 15px; font-weight: 500; background: var(--green-dark); border: 1px solid var(--green); border-radius: 8px; color: var(--text); }
+.account-nav a.account:hover { color: var(--text); background: #145238; }
+
+/* ---------- Auth form ---------- */
+main { max-width: 480px; margin: 0 auto; padding: 64px 24px 80px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 36px 32px 32px; }
+h1 { margin: 0 0 8px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 36px; letter-spacing: -1px; }
+.lead { margin: 0 0 28px; font-size: 16px; line-height: 1.6; color: var(--muted); }
+.field { margin-bottom: 18px; }
+.field label { display: block; margin-bottom: 8px; font-size: 15px; color: var(--muted); }
+.field input {
+  width: 100%; padding: 14px 16px; font: 400 16px 'Inter', sans-serif; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px; outline: none;
+}
+.field input::placeholder { color: var(--dim); }
+.field input:focus { border-color: var(--green); }
+.field input[aria-invalid="true"] { border-color: var(--error); }
+.err { margin: 8px 0 0; min-height: 0; font-size: 14px; color: var(--error); }
+.err:empty { display: none; }
+.notice { margin: 0 0 20px; padding: 12px 16px; font-size: 15px; line-height: 1.5; border-radius: 10px; }
+.notice.ok { color: var(--text); background: var(--green-dark); border: 1px solid var(--green); }
+.notice.bad { color: var(--error); border: 1px solid var(--error); }
+.notice:empty { display: none; }
+button#submit {
+  width: 100%; margin-top: 6px; padding: 14px 24px; font: 500 17px 'Inter', sans-serif; color: var(--text); cursor: pointer;
+  background: var(--green-dark); border: 1px solid var(--green); border-radius: 10px;
+}
+button#submit:hover { background: #145238; }
+button#submit:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+button#submit:disabled { opacity: .6; cursor: wait; }
+.switch { margin: 24px 0 0; text-align: center; font-size: 15px; color: var(--muted); }
+.switch a { color: var(--green); }
+.switch a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header>
+<div class="header-inner">
+<a href="index.html" class="brand">
+<svg width="38" height="38" viewBox="0 0 64 64" role="img" aria-label="Logix mark"><rect x="1" y="1" width="62" height="62" rx="15" fill="#0F3D2B" stroke="#34C47C" stroke-width="2"></rect><line x1="23" y1="16" x2="23" y2="46" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"></line><line x1="35" y1="46" x2="48" y2="46" stroke="#34C47C" stroke-width="8" stroke-linecap="round"></line></svg>
+Logix
+</a>
+<nav class="main-nav">
+<a href="index.html">Home</a>
+<a href="c.html">Compiler</a>
+<a href="download.html">Download</a>
+<a href="Contactus.html">Contact</a>
+</nav>
+<nav class="account-nav">
+<a href="login.html" class="account"><span>Account</span></a>
+</nav>
+</div>
+</header>
+
+<main>
+<section class="card">
+<h1>Sign up</h1>
+<p class="lead">Create a free Logix account. It only takes a moment.</p>
+<div class="notice" id="notice" role="alert"></div>
+<form id="form" novalidate>
+<div class="field">
+<label for="name">Name</label>
+<input id="name" name="name" type="text" autocomplete="name" placeholder="Your name">
+<p class="err" id="err-name"></p>
+</div>
+<div class="field">
+<label for="email">Email</label>
+<input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com">
+<p class="err" id="err-email"></p>
+</div>
+<div class="field">
+<label for="password">Password</label>
+<input id="password" name="password" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+<p class="err" id="err-password"></p>
+</div>
+<button id="submit" type="submit">Create account</button>
+</form>
+<p class="switch">Already have an account? <a href="login.html" id="otherLink">Log in</a></p>
+</section>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+(function () {
+  var form = document.getElementById("form");
+  var btn = document.getElementById("submit");
+  var notice = document.getElementById("notice");
+  var isEmail = function (v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); };
+
+  // Already logged in: nothing to do here.
+  if (Logix.isLoggedIn()) { location.replace(Logix.nextUrl("index.html")); return; }
+
+  function fieldError(name, msg) {
+    var input = form.elements[name], out = document.getElementById("err-" + name);
+    if (!input || !out) return false;
+    out.textContent = msg || "";
+    if (msg) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
+    return !!msg;
+  }
+  function clearErrors() {
+    ["name", "email", "password"].forEach(function (n) { fieldError(n, ""); });
+    notice.textContent = ""; notice.className = "notice";
+  }
+  function showNotice(msg, kind) { notice.textContent = msg; notice.className = "notice " + kind; }
+
+  // Shows server messages ({errors:{field:msg}}) under the matching field, anything else on top.
+  function showServerError(err) {
+    var shown = false;
+    if (err && err.errors) Object.keys(err.errors).forEach(function (k) { shown = fieldError(k, err.errors[k]) || shown; });
+    if (!shown) showNotice((err && err.message) || "Something went wrong. Try again.", "bad");
+  }
+
+  function run(task, busyText) {
+    var label = btn.textContent;
+    btn.disabled = true; btn.textContent = busyText;
+    task().catch(showServerError).then(function () { btn.disabled = false; btn.textContent = label; });
+  }
+
+  var next = new URLSearchParams(location.search).get("next");
+
+  // Keep the ?next= page when the user switches to Log in.
+  if (next) document.getElementById("otherLink").href = "login.html?next=" + encodeURIComponent(next);
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = form.elements.name.value.trim(), email = form.elements.email.value.trim(), pw = form.elements.password.value;
+    clearErrors();
+    var bad = false;
+    if (!name) bad = fieldError("name", "Please enter your name.") || bad;
+    if (!email) bad = fieldError("email", "Please enter your email.") || bad;
+    else if (!isEmail(email)) bad = fieldError("email", "Please enter a valid email.") || bad;
+    if (pw.length < 6) bad = fieldError("password", "Password must be at least 6 characters.") || bad;
+    if (bad) return;
+
+    run(function () {
+      return Logix.signup(name, email, pw).then(function () {
+        location.replace("login.html?registered=1" + (next ? "&next=" + encodeURIComponent(next) : ""));
+      });
+    }, "Creating account...");
+  });
+})();
+</script>
+</body>
+</html>

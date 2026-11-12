@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logix | C Compiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070A08;
+  --panel: #0D1410;
+  --panel-head: #0A110D;
+  --line: #1E3A2D;
+  --green: #34C47C;
+  --green-dark: #0F3D2B;
+  --text: #FFFFFF;
+  --muted: #B7C4BC;
+  --dim: #5E7A6B;
+  --error: #FF6B6B;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+a { color: var(--text); text-decoration: none; }
+a:hover { color: var(--green); }
+
+/* ---------- Header (same as index.html) ---------- */
+header { border-bottom: 1px solid var(--line); }
+.header-inner { max-width: 1200px; margin: 0 auto; padding: 20px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px; }
+.brand { display: flex; align-items: center; gap: 12px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.5px; }
+.main-nav { display: flex; flex-wrap: wrap; gap: 8px 28px; flex-grow: 1; font-size: 15px; }
+.main-nav a.active { color: var(--green); }
+.account-nav { display: flex; align-items: center; gap: 20px; font-size: 15px; }
+.account-nav a.account { display: inline-block; padding: 11px 20px; font-size: 15px; font-weight: 500; background: var(--green-dark); border: 1px solid var(--green); border-radius: 8px; color: var(--text); }
+.account-nav a.account:hover { color: var(--text); background: #145238; }
+
+/* ---------- Compiler ---------- */
+main { max-width: 1200px; margin: 0 auto; padding: 40px 24px 64px; }
+.toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+.lang-field label { display: block; margin-bottom: 8px; font-size: 15px; color: var(--muted); }
+select#lang {
+  width: 230px; padding: 14px 40px 14px 16px; font: 500 17px 'Inter', sans-serif; color: var(--text);
+  background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23FFFFFF' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 16px center;
+  border: 1px solid var(--green); border-radius: 10px; appearance: none; -webkit-appearance: none; cursor: pointer;
+}
+select#lang option { background: var(--panel); }
+select#lang:focus-visible, button#run:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+button#run {
+  padding: 14px 34px; font: 500 17px 'Inter', sans-serif; color: var(--text); cursor: pointer;
+  background: var(--green-dark); border: 1px solid var(--green); border-radius: 10px;
+}
+button#run:hover { background: #145238; }
+button#run:disabled { opacity: .6; cursor: wait; }
+
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.panel { display: flex; flex-direction: column; height: 530px; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px; background: var(--panel-head); border-bottom: 1px solid var(--line); font-weight: 500; font-size: 16px; }
+.filename { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 400; color: var(--muted); }
+
+/* Editor: line numbers + highlighted layer + transparent textarea on top */
+.editor { position: relative; flex: 1; display: flex; min-height: 0; }
+.gutter {
+  width: 56px; flex: none; padding: 24px 0 48px; overflow: hidden; text-align: right; user-select: none;
+  border-right: 1px solid var(--line); color: var(--dim);
+}
+.gutter div { padding-right: 16px; }
+.code-wrap { position: relative; flex: 1; min-width: 0; }
+.code-wrap pre, .code-wrap textarea, .gutter div, #output {
+  font-family: 'JetBrains Mono', monospace; font-size: 15px; line-height: 28px;
+}
+.code-wrap pre, .code-wrap textarea {
+  position: absolute; inset: 0; margin: 0; padding: 24px 22px; border: 0; tab-size: 4;
+  white-space: pre; overflow: auto; letter-spacing: 0;
+}
+.code-wrap pre { color: var(--text); pointer-events: none; overflow: hidden; padding-bottom: 48px; }
+.code-wrap textarea { background: transparent; color: transparent; caret-color: var(--text); resize: none; outline: none; }
+.code-wrap textarea::selection { background: rgba(52,196,124,.3); }
+.code-wrap textarea::placeholder, #output::placeholder { color: var(--dim); opacity: 1; }
+.tk-kw { color: var(--green); }
+.tk-cm { color: var(--dim); }
+
+#output {
+  flex: 1; width: 100%; padding: 24px 22px; margin: 0; border: 0; resize: none; outline: none;
+  background: transparent; color: var(--text); white-space: pre;
+}
+#output.error { color: var(--error); }
+
+@media (max-width: 860px) {
+  .panels { grid-template-columns: 1fr; }
+  .panel { height: 420px; }
+  select#lang { width: 180px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+<div class="header-inner">
+<a href="index.html" class="brand">
+<svg width="38" height="38" viewBox="0 0 64 64" role="img" aria-label="Logix mark"><rect x="1" y="1" width="62" height="62" rx="15" fill="#0F3D2B" stroke="#34C47C" stroke-width="2"></rect><line x1="23" y1="16" x2="23" y2="46" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"></line><line x1="35" y1="46" x2="48" y2="46" stroke="#34C47C" stroke-width="8" stroke-linecap="round"></line></svg>
+Logix
+</a>
+<nav class="main-nav">
+<a href="index.html">Home</a>
+<a href="c.html" class="active">Compiler</a>
+<a href="download.html">Download</a>
+<a href="Contactus.html">Contact</a>
+</nav>
+<nav class="account-nav">
+<a href="login.html" class="account"><span>Account</span></a>
+</nav>
+</div>
+</header>
+
+<main>
+<div class="toolbar">
+<div class="lang-field">
+<label for="lang">Language</label>
+<select id="lang">
+<option value="c.html" selected>C</option>
+<option value="cpp.html">C++</option>
+<option value="java.html">Java</option>
+</select>
+</div>
+<button id="run" type="button">Run</button>
+</div>
+
+<div class="panels">
+<section class="panel">
+<div class="panel-head"><span>Input</span><span class="filename">main.c</span></div>
+<div class="editor">
+<div class="gutter" id="gutter"></div>
+<div class="code-wrap">
+<pre id="hl" aria-hidden="true"></pre>
+<textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="C source code" placeholder="Write or paste your C code here..."></textarea>
+</div>
+</div>
+</section>
+
+<section class="panel">
+<div class="panel-head"><span>Output</span></div>
+<textarea id="output" readonly spellcheck="false" aria-label="Output" placeholder="Output will appear here after you press Run."></textarea>
+</section>
+</div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+(function () {
+  var KEYWORDS = "auto break case char const continue default do double else enum extern float for goto if inline int long register return short signed sizeof static struct switch typedef union unsigned void volatile while";
+
+  var code = document.getElementById("code");
+  var hl = document.getElementById("hl");
+  var gutter = document.getElementById("gutter");
+  var tokenRe = new RegExp("(\\/\\/.*|\\/\\*[\\s\\S]*?\\*\\/)|(#\\s*\\w+)|\\b(" + KEYWORDS.split(" ").join("|") + ")\\b", "g");
+
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  function render() {
+    var text = code.value;
+    var html = "", last = 0, m;
+    tokenRe.lastIndex = 0;
+    while ((m = tokenRe.exec(text))) {
+      html += esc(text.slice(last, m.index));
+      html += '<span class="' + (m[1] ? "tk-cm" : "tk-kw") + '">' + esc(m[0]) + "</span>";
+      last = m.index + m[0].length;
+    }
+    hl.innerHTML = html + esc(text.slice(last)) + "\n";
+
+    var lines = text.split("\n").length, nums = "";
+    for (var i = 1; i <= lines; i++) nums += "<div>" + i + "</div>";
+    gutter.innerHTML = nums;
+    sync();
+  }
+
+  function sync() {
+    hl.scrollTop = code.scrollTop;
+    hl.scrollLeft = code.scrollLeft;
+    gutter.scrollTop = code.scrollTop;
+  }
+
+  /* Remember the current program so download.html can save it. */
+  var FILE = { language: "C", fileName: "main.c", page: "c.html" };
+  function save() {
+    try { localStorage.setItem("logix_current", JSON.stringify({ language: FILE.language, fileName: FILE.fileName, page: FILE.page, code: code.value })); } catch (e) { }
+  }
+  function onEdit() { render(); save(); }
+  try {   // coming back from the Download page: put the user's program back
+    var saved = JSON.parse(localStorage.getItem("logix_current"));
+    if (saved && saved.page === FILE.page && typeof saved.code === "string") code.value = saved.code;
+  } catch (e) { }
+
+  code.addEventListener("input", onEdit);
+  code.addEventListener("scroll", sync);
+  code.addEventListener("keydown", function (e) {
+    if (e.key !== "Tab") return;
+    e.preventDefault();
+    code.setRangeText("    ", code.selectionStart, code.selectionEnd, "end");
+    onEdit();
+  });
+
+  document.getElementById("lang").addEventListener("change", function () {
+    location.href = this.value;
+  });
+
+  render();
+
+  Logix.attachCompiler({
+    runBtn: document.getElementById("run"),
+    code: code,
+    output: document.getElementById("output")
+  });
+})();
+</script>
+</body>
+</html>
