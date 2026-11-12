@@ -10,3 +10,6 @@ logix
 logix.exe
 .idea/
 .vscode/
+node_modules/
+.env
+*.db

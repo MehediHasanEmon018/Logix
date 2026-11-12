@@ -13,11 +13,13 @@ Compiles the fixed mini language from Section 5 of the project manual down to Th
 | Phase | Where | State |
 |-------|-------|-------|
 | Lexer (Flex) | `src/lexer/lexer.l` | done |
-| Parser + CFG (Bison) | `src/parser/parser.y` | grammar done, error recovery via `error ';'` |
+| Parser + CFG (Bison) | `src/parser/parser.y` | grammar done (incl. `int x = expr;`), error recovery via `error ';'` / `error '}'` |
 | AST | `src/ast/` | done (`--ast` prints the tree) |
 | Symbol table (nested scopes) | `src/symtab/` | done (`--symtab` prints it) |
 | Semantic analyzer | `src/semantic/` | done (6 error types) |
-| TAC generator | `src/icg/` | done (printed to stdout) |
+| TAC generator | `src/icg/` | done (printed to stdout, `&&`/`||` short-circuit) |
+| Web frontend | `experiments/frontend/` | done (login, signup, account, c/cpp/java run pages) |
+| Backend API | `experiments/backend/` | done (Express + SQLite, `POST /api/compile` runs `./logix`) |
 
 ## Requirements
 Linux, `gcc`, `flex`, `bison`, `make` (`sudo apt install gcc flex bison make`).
@@ -51,3 +53,14 @@ tests/       valid, lexical_errors, syntax_errors, semantic_errors
 examples/    sample programs
 prototypes/  earlier hand-written C / C++ / Java experiments (not part of the graded build)
 ```
+
+
+## Web app (optional)
+```bash
+make                                   # the backend runs ./logix
+cd experiments/backend
+npm install
+cp .env.example .env                   # Windows: copy .env.example .env
+npm start                              # http://localhost:3000 (site + API)
+```
+No backend needed for a quick demo: `node mock-server/server.js` (in-memory, same API, see `API.md`).

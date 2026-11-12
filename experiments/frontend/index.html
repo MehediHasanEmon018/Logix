@@ -1,3 +1,134 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Logix</title><style>body{font-family:system-ui;background:#101827;color:#f3f4f6;max-width:760px;margin:60px auto;padding:20px}textarea{width:100%;height:240px;background:#1f2937;color:white;padding:12px;box-sizing:border-box}code{color:#93c5fd}</style></head><body><h1>Logix</h1><p>A tiny educational compiler for C-like expressions.</p><textarea readonly>int a = 10;
-int b = 5;
-print(a + b * 2);</textarea><p>Run the compiler locally from <code>C_Compiler/</code>. Web execution is not connected yet.</p></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logix landing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+body { margin: 0; background: #070A08; }
+a { color: #FFFFFF; text-decoration: none; }
+a:hover { color: #34C47C; }
+</style>
+</head>
+<body>
+<div style="background: #070A08; color: #FFFFFF; font-family: 'Inter', system-ui, sans-serif">
+
+<header style="border-bottom: 1px solid #1E3A2D">
+<div style="max-width: 1200px; margin: 0 auto; padding: 20px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px">
+<a href="#" style="display: flex; align-items: center; gap: 12px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.5px">
+<svg width="38" height="38" viewBox="0 0 64 64" role="img" aria-label="Logix mark"><rect x="1" y="1" width="62" height="62" rx="15" fill="#0F3D2B" stroke="#34C47C" stroke-width="2"></rect><line x1="23" y1="16" x2="23" y2="46" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"></line><line x1="35" y1="46" x2="48" y2="46" stroke="#34C47C" stroke-width="8" stroke-linecap="round"></line></svg>
+Logix
+</a>
+<nav style="display: flex; flex-wrap: wrap; gap: 8px 28px; flex-grow: 1; font-size: 15px">
+<a href="#">Home</a>
+<a href="Playground.dc.html">Compiler</a>
+<a href="#">Download</a>
+<a href="#">Contact</a>
+</nav>
+<div style="display: flex; gap: 12px; align-items: center">
+<a href="#" style="padding: 11px 20px; font-size: 15px">Log in</a>
+<a href="#" style="padding: 11px 20px; font-size: 15px; background: #0F3D2B; border: 1px solid #34C47C; border-radius: 8px; font-weight: 500">Sign up</a>
+</div>
+</div>
+</header>
+
+<section style="max-width: 1200px; margin: 0 auto; padding: 88px 24px 96px; display: flex; flex-wrap: wrap; gap: 56px; align-items: center">
+<div style="flex: 1 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 28px">
+<span style="align-self: flex-start; padding: 6px 14px; border: 1px solid #1E3A2D; border-radius: 999px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #34C47C">C, C++ and Java</span>
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(44px, 6vw, 76px); line-height: 1.02; letter-spacing: -2px">Write code.<br>See the output.</h1>
+<p style="margin: 0; font-size: 19px; line-height: 1.6; color: #B7C4BC; max-width: 520px">Pick a language, type your program, and run it. Logix keeps the page simple: one box for your code, one box for the result.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 14px">
+<a href="Playground.dc.html" style="padding: 15px 28px; background: #0F3D2B; border: 1px solid #34C47C; border-radius: 10px; font-weight: 500; font-size: 16px">Open the compiler</a>
+</div>
+</div>
+
+<div style="flex: 1 1 460px; min-width: 0; background: #0D1410; border: 1px solid #1E3A2D; border-radius: 14px; overflow: hidden">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #1E3A2D">
+<span style="padding: 8px 14px; border: 1px solid #34C47C; border-radius: 8px; font-size: 14px">Java</span>
+<span style="padding: 8px 18px; background: #0F3D2B; border: 1px solid #34C47C; border-radius: 8px; font-size: 14px; font-weight: 500">Run</span>
+</div>
+<div style="padding: 20px 22px; border-bottom: 1px solid #1E3A2D">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 1px; color: #34C47C; margin-bottom: 12px">INPUT</div>
+<pre style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 15px; line-height: 1.7; color: #FFFFFF"><span style="color:#34C47C">public class</span> Main {
+    <span style="color:#34C47C">public static void</span> main(String[] args) {
+        System.out.println("Hello, Logix");
+    }
+}</pre>
+</div>
+<div style="padding: 20px 22px; background: #070A08">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 1px; color: #34C47C; margin-bottom: 12px">OUTPUT</div>
+<pre style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 15px; line-height: 1.7; color: #FFFFFF">Hello, Logix</pre>
+</div>
+</div>
+</section>
+
+<section style="border-top: 1px solid #1E3A2D; border-bottom: 1px solid #1E3A2D; background: #0A110D">
+<div style="max-width: 1200px; margin: 0 auto; padding: 80px 24px; display: flex; flex-direction: column; gap: 44px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 1px; color: #34C47C">LANGUAGES</span>
+<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; letter-spacing: -1px">Pick from the dropdown</h2>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
+<a href="Playground.dc.html" style="background: #0D1410; border: 1px solid #1E3A2D; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 40px; color: #34C47C">C</span>
+<h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">C</h3>
+<p style="margin: 0; font-size: 16px; line-height: 1.55; color: #B7C4BC">Run plain C programs and read the output.</p>
+</a>
+<a href="Playground.dc.html" style="background: #0D1410; border: 1px solid #1E3A2D; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 40px; color: #34C47C">C++</span>
+<h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">C++</h3>
+<p style="margin: 0; font-size: 16px; line-height: 1.55; color: #B7C4BC">Try classes, loops and streams in C++.</p>
+</a>
+<a href="Playground.dc.html" style="background: #0D1410; border: 1px solid #1E3A2D; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 40px; color: #34C47C">Java</span>
+<h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">Java</h3>
+<p style="margin: 0; font-size: 16px; line-height: 1.55; color: #B7C4BC">Write a Main class and run it.</p>
+</a>
+</div>
+</div>
+</section>
+
+<section style="max-width: 1200px; margin: 0 auto; padding: 96px 24px; display: flex; flex-direction: column; gap: 44px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 1px; color: #34C47C">HOW IT WORKS</span>
+<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; letter-spacing: -1px">Three steps</h2>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
+<div style="border: 1px solid #1E3A2D; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #34C47C">01</span>
+<h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">Choose a language</h3>
+<p style="margin: 0; font-size: 16px; line-height: 1.55; color: #B7C4BC">Open the dropdown and select C, C++ or Java.</p>
+</div>
+<div style="border: 1px solid #1E3A2D; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #34C47C">02</span>
+<h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">Write your code</h3>
+<p style="margin: 0; font-size: 16px; line-height: 1.55; color: #B7C4BC">Type or paste your program into the input box.</p>
+</div>
+<div style="border: 1px solid #1E3A2D; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #34C47C">03</span>
+<h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">Run and read</h3>
+<p style="margin: 0; font-size: 16px; line-height: 1.55; color: #B7C4BC">Press Run. The result shows up in the output box.</p>
+</div>
+</div>
+</section>
+
+<section style="max-width: 1200px; margin: 0 auto; padding: 0 24px 96px">
+<div style="background: #0F3D2B; border: 1px solid #34C47C; border-radius: 20px; padding: 64px 40px; display: flex; flex-direction: column; align-items: center; gap: 24px; text-align: center">
+<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; letter-spacing: -1px">Ready to run your first program?</h2>
+<a href="Playground.dc.html" style="padding: 15px 32px; background: #070A08; border: 1px solid #34C47C; border-radius: 10px; font-weight: 500; font-size: 16px">Open the compiler</a>
+</div>
+</section>
+
+<footer style="border-top: 1px solid #1E3A2D">
+<div style="max-width: 1200px; margin: 0 auto; padding: 32px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; font-size: 14px; color: #B7C4BC">
+<span>Logix. Compiler Construction Lab, Metropolitan University.</span>
+<span style="display: flex; gap: 24px"><a href="#" style="color: #B7C4BC">Download</a><a href="#" style="color: #B7C4BC">Contact</a></span>
+</div>
+</footer>
+
+</div>
+</body>
+</html>

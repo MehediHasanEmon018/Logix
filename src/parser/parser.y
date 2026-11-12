@@ -14,6 +14,8 @@ int  yylex(void);
 void yyerror(const char *msg);
 extern int yylineno;
 int   syntax_errors = 0;
+extern int prev_tok_line, prev_tok;   /* from lexer.l: line + kind of the token before the lookahead */
+extern int yychar;
 Node *ast_root = NULL;
 %}
 
@@ -69,9 +71,11 @@ stmt        : decl ';'                  { $$ = $1; }
             ;
 
 block       : '{' stmt_list '}'         { $$ = mk_block($2, @1.first_line); }
+            | '{' stmt_list error '}'   { yyerrok; $$ = mk_block($2, @1.first_line); }
             ;
 
 decl        : type ID                   { $$ = mk_decl($1, $2, @2.first_line); }
+            | type ID '=' expr          { $$ = mk_decl_init($1, $2, $4, @2.first_line); }
             ;
 
 type        : INT                       { $$ = T_INT; }
@@ -103,7 +107,23 @@ expr        : expr OR expr              { $$ = mk_binop("||", $1, $3, @2.first_l
 
 %%
 
+/* Which line to blame?
+ *  - unexpected end of file  -> the last real token's line
+ *  - the previous token could end a statement (ID, literal, ')') and the
+ *    offending token is on a later line -> almost always a missing ';' at the
+ *    end of the previous line, so blame that line (what gcc does too)
+ *  - otherwise -> the line of the offending token */
+static int error_line(void) {
+    /* yylloc holds the location of the lookahead token that triggered the error */
+    int cur_line = yylloc.first_line;
+    if (yychar == 0) return prev_tok_line ? prev_tok_line : cur_line;
+    int ends_stmt = prev_tok == ID || prev_tok == INT_LIT || prev_tok == FLOAT_LIT ||
+                    prev_tok == TRUE_LIT || prev_tok == FALSE_LIT || prev_tok == ')';
+    if (ends_stmt && cur_line > prev_tok_line) return prev_tok_line;
+    return cur_line;
+}
+
 void yyerror(const char *msg) {
-    fprintf(stderr, "Syntax error at line %d: %s\n", yylineno, msg);
+    fprintf(stderr, "Syntax error at line %d: %s\n", error_line(), msg);
     syntax_errors++;
 }

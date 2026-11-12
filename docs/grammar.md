@@ -11,7 +11,7 @@ stmt      -> decl ';'
            | 'while' '(' expr ')' stmt
            | block
 block     -> '{' stmt_list '}'
-decl      -> type ID
+decl      -> type ID | type ID '=' expr        (declaration with initializer)
 type      -> 'int' | 'float' | 'bool'
 expr      -> expr '||' expr | expr '&&' expr
            | expr ('==' | '!=') expr

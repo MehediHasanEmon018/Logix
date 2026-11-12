@@ -13,6 +13,7 @@ static Node *new_node(NodeKind k, int line) {
 Node *mk_program(Node *s)  { Node *n = new_node(N_PROGRAM, 1); n->a = s; return n; }
 Node *mk_block(Node *s, int l) { Node *n = new_node(N_BLOCK, l); n->a = s; return n; }
 Node *mk_decl(Type t, char *name, int l) { Node *n = new_node(N_DECL, l); n->type = t; n->name = name; return n; }
+Node *mk_decl_init(Type t, char *name, Node *init, int l) { Node *n = mk_decl(t, name, l); n->a = init; return n; }
 Node *mk_assign(char *name, Node *e, int l) { Node *n = new_node(N_ASSIGN, l); n->name = name; n->a = e; return n; }
 Node *mk_print(Node *e, int l) { Node *n = new_node(N_PRINT, l); n->a = e; return n; }
 Node *mk_if(Node *c, Node *t, Node *e, int l) { Node *n = new_node(N_IF, l); n->a = c; n->b = t; n->c = e; return n; }
@@ -44,7 +45,9 @@ static void print_one(const Node *n, int d) {
     switch (n->kind) {
     case N_PROGRAM: printf("Program\n"); ast_print(n->a, d + 1); break;
     case N_BLOCK:   printf("Block\n");   ast_print(n->a, d + 1); break;
-    case N_DECL:    printf("Decl %s %s (line %d)\n", type_name(n->type), n->name, n->line); break;
+    case N_DECL:    printf("Decl %s %s (line %d)\n", type_name(n->type), n->name, n->line);
+                    if (n->a) { indent(d + 1); printf("Init:\n"); print_one(n->a, d + 2); }
+                    break;
     case N_ASSIGN:  printf("Assign %s (line %d)\n", n->name, n->line); print_one(n->a, d + 1); break;
     case N_PRINT:   printf("Print (line %d)\n", n->line); print_one(n->a, d + 1); break;
     case N_IF:

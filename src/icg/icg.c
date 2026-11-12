@@ -21,6 +21,8 @@ static int   temp_count, label_count;
 
 typedef struct Var  { char *name; char *tac; struct Var *next; } Var;
 typedef struct Used { char *name; int count; struct Used *next; } Used;
+typedef struct Taken { char *tac; struct Taken *next; } Taken;
+static Taken *taken;   /* every TAC name already handed out */
 
 static Var  *vars;   /* variables visible right now, innermost first */
 static Used *used;   /* how many times each source name has been declared */
@@ -39,6 +41,11 @@ static int looks_generated(const char *s) {
     return 1;
 }
 
+static int is_taken(const char *s) {
+    for (Taken *t = taken; t; t = t->next) if (strcmp(t->tac, s) == 0) return 1;
+    return 0;
+}
+
 static void declare(const char *name) {
     Used *u = used;
     while (u && strcmp(u->name, name) != 0) u = u->next;
@@ -50,9 +57,15 @@ static void declare(const char *name) {
         used = u;
     }
     char buf[256];
-    if (u->count == 0 && !looks_generated(name)) snprintf(buf, sizeof buf, "%s", name);
-    else snprintf(buf, sizeof buf, "%s_%d", name, u->count);
-    u->count++;
+    /* first choice: the plain name; otherwise name_k with the first k that nobody has used yet */
+    if (u->count == 0 && !looks_generated(name) && !is_taken(name)) snprintf(buf, sizeof buf, "%s", name);
+    else {
+        do { snprintf(buf, sizeof buf, "%s_%d", name, u->count); u->count++; } while (is_taken(buf));
+    }
+    if (u->count == 0) u->count = 1;
+    Taken *tk = calloc(1, sizeof(Taken));
+    if (!tk) { fprintf(stderr, "out of memory\n"); exit(2); }
+    tk->tac = dup_str(buf); tk->next = taken; taken = tk;
 
     Var *v = calloc(1, sizeof(Var));
     if (!v) { fprintf(stderr, "out of memory\n"); exit(2); }
@@ -105,7 +118,8 @@ static char *gen_expr(const Node *n) {
         snprintf(buf, sizeof buf, "%d", n->ival);
         return dup_str(buf);
     case N_FLOAT:
-        snprintf(buf, sizeof buf, "%g", n->fval);
+        snprintf(buf, sizeof buf, "%.15g", n->fval);                 /* shortest form that is still exact enough ... */
+        if (strtod(buf, NULL) != n->fval) snprintf(buf, sizeof buf, "%.17g", n->fval);   /* ... otherwise full precision */
         if (!strpbrk(buf, ".eEn")) strcat(buf, ".0");   /* keep 2.0 looking like a float */
         return dup_str(buf);
     case N_BOOL:
@@ -120,6 +134,26 @@ static char *gen_expr(const Node *n) {
         return t;
     }
     case N_BINOP: {
+        /* && and || short-circuit: the right operand is only evaluated when
+         * the left one does not already decide the result */
+        if (strcmp(n->op, "&&") == 0 || strcmp(n->op, "||") == 0) {
+            char *l = gen_expr(n->a);
+            char *res = new_temp();
+            int lend = new_label();
+            emit("%s = %s", res, l);
+            if (n->op[0] == '&') {
+                emit("ifFalse %s goto L%d", res, lend);     /* left false -> result false */
+            } else {
+                int lright = new_label();                   /* only ifFalse exists in our TAC */
+                emit("ifFalse %s goto L%d", res, lright);
+                emit("goto L%d", lend);                     /* left true -> result true */
+                emit_label(lright);
+            }
+            char *r = gen_expr(n->b);
+            emit("%s = %s", res, r);
+            emit_label(lend);
+            return res;
+        }
         char *l = gen_expr(n->a);
         char *r = gen_expr(n->b);
         /* mixed int/float arithmetic or comparison: widen the int side */
@@ -150,7 +184,16 @@ static void gen_stmts(const Node *n) {
     for (; n; n = n->next) {
         switch (n->kind) {
         case N_DECL:
-            declare(n->name);          /* no instruction: just bookkeeping */
+            if (n->a) {
+                /* evaluate the initializer first: "int x = x + 1;" in an inner
+                 * scope must read the OUTER x, then declare the new one */
+                char *v = gen_expr(n->a);
+                if (n->type == T_FLOAT && n->a->type == T_INT) v = to_float(v);
+                declare(n->name);
+                emit("%s = %s", lookup(n->name), v);
+            } else {
+                declare(n->name);      /* no instruction: just bookkeeping */
+            }
             break;
 
         case N_ASSIGN: {
@@ -209,5 +252,6 @@ void tac_generate(const Node *root, FILE *f) {
     temp_count = label_count = 0;
     vars = NULL;
     used = NULL;
+    taken = NULL;
     if (root) gen_stmts(root->a);
 }

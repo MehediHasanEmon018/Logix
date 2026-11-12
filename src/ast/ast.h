@@ -24,6 +24,7 @@ typedef struct Node {
 Node *mk_program(Node *stmts);
 Node *mk_block(Node *stmts, int line);
 Node *mk_decl(Type t, char *name, int line);
+Node *mk_decl_init(Type t, char *name, Node *init, int line);   /* int x = expr; (init in ->a) */
 Node *mk_assign(char *name, Node *expr, int line);
 Node *mk_print(Node *expr, int line);
 Node *mk_if(Node *cond, Node *then_s, Node *else_s, int line);

@@ -122,11 +122,17 @@ static void check_stmts(Node *n) {
     for (; n; n = n->next) {
         switch (n->kind) {
         case N_DECL: {
+            /* initializer is checked BEFORE the name is inserted, so
+             * "int x = x;" correctly reports x as undeclared */
+            Type it = n->a ? check_expr(n->a) : T_NONE;
             Symbol *old = st_lookup_current(n->name);
             if (old)
                 err(n->line, "redeclaration of '%s' (first declared at line %d)", n->name, old->line);
             else
                 st_insert(n->name, n->type, n->line);
+            if (n->a && it != T_NONE && !(n->type == it || (n->type == T_FLOAT && it == T_INT)))
+                err(n->line, "type mismatch: cannot initialize '%s' variable '%s' with '%s'",
+                    type_name(n->type), n->name, type_name(it));
             break;
         }
         case N_ASSIGN: {
