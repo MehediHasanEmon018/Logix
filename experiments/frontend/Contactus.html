@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logix | Contact</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070A08;
+  --panel: #0D1410;
+  --panel-head: #0A110D;
+  --line: #1E3A2D;
+  --green: #34C47C;
+  --green-dark: #0F3D2B;
+  --text: #FFFFFF;
+  --muted: #B7C4BC;
+  --dim: #5E7A6B;
+  --error: #FF6B6B;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+a { color: var(--text); text-decoration: none; }
+a:hover { color: var(--green); }
+
+/* ---------- Header (same as the other pages) ---------- */
+header { border-bottom: 1px solid var(--line); }
+.header-inner { max-width: 1200px; margin: 0 auto; padding: 20px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px; }
+.brand { display: flex; align-items: center; gap: 12px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.5px; }
+.main-nav { display: flex; flex-wrap: wrap; gap: 8px 28px; flex-grow: 1; font-size: 15px; }
+.account-nav { display: flex; align-items: center; gap: 20px; font-size: 15px; }
+.account-nav a.account { display: inline-block; padding: 11px 20px; font-size: 15px; font-weight: 500; background: var(--green-dark); border: 1px solid var(--green); border-radius: 8px; color: var(--text); }
+.account-nav a.account:hover { color: var(--text); background: #145238; }
+
+
+main { max-width: 1200px; margin: 0 auto; padding: 64px 24px 80px; }
+h1 { margin: 0 0 12px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(36px, 5vw, 56px); letter-spacing: -1.5px; }
+.lead { margin: 0 0 40px; font-size: 18px; line-height: 1.6; color: var(--muted); max-width: 640px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px; }
+.card h3 { margin: 0 0 10px; font-family: 'Space Grotesk', sans-serif; font-size: 20px; }
+.card p, .card a.mail { margin: 0; font-size: 16px; line-height: 1.6; color: var(--muted); }
+.card a.mail { color: var(--green); }
+.card a.mail:hover { text-decoration: underline; }
+.cta { margin-top: 48px; padding: 40px 32px; text-align: center; background: var(--green-dark); border: 1px solid var(--green); border-radius: 14px; }
+.cta h2 { margin: 0 0 20px; font-family: 'Space Grotesk', sans-serif; font-size: 30px; letter-spacing: -0.5px; }
+.cta a { display: inline-block; padding: 14px 28px; font-weight: 500; background: var(--bg); border: 1px solid var(--green); border-radius: 10px; }
+.cta a:hover { color: var(--text); background: #0B120E; }
+footer { border-top: 1px solid var(--line); }
+.foot { max-width: 1200px; margin: 0 auto; padding: 32px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; font-size: 14px; color: var(--muted); }
+.foot nav { display: flex; gap: 24px; }
+.foot a { color: var(--muted); }
+.foot a:hover { color: var(--green); }
+</style>
+</head>
+<body>
+
+<header>
+<div class="header-inner">
+<a href="index.html" class="brand">
+<svg width="38" height="38" viewBox="0 0 64 64" role="img" aria-label="Logix mark"><rect x="1" y="1" width="62" height="62" rx="15" fill="#0F3D2B" stroke="#34C47C" stroke-width="2"></rect><line x1="23" y1="16" x2="23" y2="46" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"></line><line x1="35" y1="46" x2="48" y2="46" stroke="#34C47C" stroke-width="8" stroke-linecap="round"></line></svg>
+Logix
+</a>
+<nav class="main-nav">
+<a href="index.html">Home</a>
+<a href="c.html">Compiler</a>
+<a href="download.html">Download</a>
+<a href="Contactus.html" class="active">Contact</a>
+</nav>
+<nav class="account-nav">
+<a href="login.html" class="account"><span>Account</span></a>
+</nav>
+</div>
+</header>
+<main>
+<h1>Contact us</h1>
+<p class="lead">Questions, feedback or a bug to report? Reach us using the details below.</p>
+<div class="cards">
+<section class="card"><h3>Email</h3><a class="mail" href="mailto:contact@logix.com">contact@logix.com</a></section>
+<section class="card"><h3>Location</h3><p>Metropolitan University, Sylhet, Bangladesh</p></section>
+<section class="card"><h3>Response time</h3><p>We usually reply within 24 hours.</p></section>
+</div>
+<div class="cta">
+<h2>Ready to run your code?</h2>
+<a href="c.html">Open the compiler</a>
+</div>
+</main>
+
+<footer>
+<div class="foot">
+<span>Logix. Compiler Construction Lab, Metropolitan University.</span>
+<nav><a href="download.html">Download</a><a href="Contactus.html">Contact</a></nav>
+</div>
+</footer>
+
+<script src="js/api.js"></script>
+</body>
+</html>

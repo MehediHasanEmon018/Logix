@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Logix landing</title>
+<title>Logix | Home</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -11,6 +11,8 @@
 body { margin: 0; background: #070A08; }
 a { color: #FFFFFF; text-decoration: none; }
 a:hover { color: #34C47C; }
+nav.account-nav a.account { display: inline-block; padding: 11px 20px; font-size: 15px; font-weight: 500; background: #0F3D2B; border: 1px solid #34C47C; border-radius: 8px; color: #FFFFFF; }
+nav.account-nav a.account:hover { color: #FFFFFF; background: #145238; }
 </style>
 </head>
 <body>
@@ -18,20 +20,19 @@ a:hover { color: #34C47C; }
 
 <header style="border-bottom: 1px solid #1E3A2D">
 <div style="max-width: 1200px; margin: 0 auto; padding: 20px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px">
-<a href="#" style="display: flex; align-items: center; gap: 12px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.5px">
+<a href="index.html" style="display: flex; align-items: center; gap: 12px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.5px">
 <svg width="38" height="38" viewBox="0 0 64 64" role="img" aria-label="Logix mark"><rect x="1" y="1" width="62" height="62" rx="15" fill="#0F3D2B" stroke="#34C47C" stroke-width="2"></rect><line x1="23" y1="16" x2="23" y2="46" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"></line><line x1="35" y1="46" x2="48" y2="46" stroke="#34C47C" stroke-width="8" stroke-linecap="round"></line></svg>
 Logix
 </a>
 <nav style="display: flex; flex-wrap: wrap; gap: 8px 28px; flex-grow: 1; font-size: 15px">
-<a href="#">Home</a>
-<a href="Playground.dc.html">Compiler</a>
-<a href="#">Download</a>
-<a href="#">Contact</a>
+<a href="index.html">Home</a>
+<a href="c.html">Compiler</a>
+<a href="download.html">Download</a>
+<a href="Contactus.html">Contact</a>
 </nav>
-<div style="display: flex; gap: 12px; align-items: center">
-<a href="#" style="padding: 11px 20px; font-size: 15px">Log in</a>
-<a href="#" style="padding: 11px 20px; font-size: 15px; background: #0F3D2B; border: 1px solid #34C47C; border-radius: 8px; font-weight: 500">Sign up</a>
-</div>
+<nav class="account-nav" style="display: flex; align-items: center; gap: 20px; font-size: 15px">
+<a href="login.html" class="account"><span>Account</span></a>
+</nav>
 </div>
 </header>
 
@@ -41,7 +42,7 @@ Logix
 <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(44px, 6vw, 76px); line-height: 1.02; letter-spacing: -2px">Write code.<br>See the output.</h1>
 <p style="margin: 0; font-size: 19px; line-height: 1.6; color: #B7C4BC; max-width: 520px">Pick a language, type your program, and run it. Logix keeps the page simple: one box for your code, one box for the result.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 14px">
-<a href="Playground.dc.html" style="padding: 15px 28px; background: #0F3D2B; border: 1px solid #34C47C; border-radius: 10px; font-weight: 500; font-size: 16px">Open the compiler</a>
+<a href="c.html" style="padding: 15px 28px; background: #0F3D2B; border: 1px solid #34C47C; border-radius: 10px; font-weight: 500; font-size: 16px">Open the compiler</a>
 </div>
 </div>
 
@@ -72,17 +73,17 @@ Logix
 <h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; letter-spacing: -1px">Pick from the dropdown</h2>
 </div>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
-<a href="Playground.dc.html" style="background: #0D1410; border: 1px solid #1E3A2D; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
+<a href="c.html" style="background: #0D1410; border: 1px solid #1E3A2D; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
 <span style="font-family: 'JetBrains Mono', monospace; font-size: 40px; color: #34C47C">C</span>
 <h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">C</h3>
 <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #B7C4BC">Run plain C programs and read the output.</p>
 </a>
-<a href="Playground.dc.html" style="background: #0D1410; border: 1px solid #1E3A2D; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
+<a href="cpp.html" style="background: #0D1410; border: 1px solid #1E3A2D; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
 <span style="font-family: 'JetBrains Mono', monospace; font-size: 40px; color: #34C47C">C++</span>
 <h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">C++</h3>
 <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #B7C4BC">Try classes, loops and streams in C++.</p>
 </a>
-<a href="Playground.dc.html" style="background: #0D1410; border: 1px solid #1E3A2D; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
+<a href="java.html" style="background: #0D1410; border: 1px solid #1E3A2D; border-radius: 12px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
 <span style="font-family: 'JetBrains Mono', monospace; font-size: 40px; color: #34C47C">Java</span>
 <h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">Java</h3>
 <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #B7C4BC">Write a Main class and run it.</p>
@@ -118,17 +119,18 @@ Logix
 <section style="max-width: 1200px; margin: 0 auto; padding: 0 24px 96px">
 <div style="background: #0F3D2B; border: 1px solid #34C47C; border-radius: 20px; padding: 64px 40px; display: flex; flex-direction: column; align-items: center; gap: 24px; text-align: center">
 <h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; letter-spacing: -1px">Ready to run your first program?</h2>
-<a href="Playground.dc.html" style="padding: 15px 32px; background: #070A08; border: 1px solid #34C47C; border-radius: 10px; font-weight: 500; font-size: 16px">Open the compiler</a>
+<a href="c.html" style="padding: 15px 32px; background: #070A08; border: 1px solid #34C47C; border-radius: 10px; font-weight: 500; font-size: 16px">Open the compiler</a>
 </div>
 </section>
 
 <footer style="border-top: 1px solid #1E3A2D">
 <div style="max-width: 1200px; margin: 0 auto; padding: 32px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; font-size: 14px; color: #B7C4BC">
 <span>Logix. Compiler Construction Lab, Metropolitan University.</span>
-<span style="display: flex; gap: 24px"><a href="#" style="color: #B7C4BC">Download</a><a href="#" style="color: #B7C4BC">Contact</a></span>
+<span style="display: flex; gap: 24px"><a href="download.html" style="color: #B7C4BC">Download</a><a href="Contactus.html" style="color: #B7C4BC">Contact</a></span>
 </div>
 </footer>
 
 </div>
+<script src="js/api.js"></script>
 </body>
 </html>
