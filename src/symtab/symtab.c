@@ -70,6 +70,10 @@ Symbol *st_find_inactive(const char *name) {
 void st_dump(void) {
     printf("%-12s %-6s %-6s %s\n", "Name", "Type", "Scope", "Line");
     printf("------------ ------ ------ ----\n");
-    for (Symbol *p = all_head; p; p = p->next_all)
-        printf("%-12s %-6s %-6d %d\n", p->name, type_name(p->type), p->scope, p->line);
+    for (Symbol *p = all_head; p; p = p->next_all) {
+        char t[32];
+        snprintf(t, sizeof t, "%s%s", p->is_func ? "func " : "", type_name(p->type));
+        if (p->is_array) strcat(t, "[]");
+        printf("%-12s %-6s %-6d %d\n", p->name, t, p->scope, p->line);
+    }
 }

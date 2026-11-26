@@ -21,6 +21,18 @@ Compiles the fixed mini language from Section 5 of the project manual down to Th
 | Web frontend | `experiments/frontend/` | done (login, signup, account, c/cpp/java run pages) |
 | Backend API | `experiments/backend/` | done (Express + SQLite, `POST /api/compile` runs `./logix`) |
 
+## C support
+
+Besides the Logix mini language, `./logix` accepts ordinary beginner C programs:
+`#include`, `int main()`, `printf` (`%d %f %.2f %c %%`), `scanf("%d", &x)` / `&arr[i]`,
+if / else if / else, `switch`, `for` / `while` / `do-while` with `break` / `continue`,
+1-D arrays (with `{...}` initializers, passed to functions by reference),
+functions with parameters, return values and recursion (prototypes allowed),
+`?:`, casts `(int)` / `(float)`, `+= -= *= /= %= ++ --`, `#define` constants, `sqrt pow abs ...`.
+Input for `scanf` comes from stdin: `echo "5 1 2 3 4 5" | ./logix prog.c --run`.
+Not supported: pointers, strings / char arrays, structs, 2-D arrays.
+See `docs/grammar.md` for the grammar and TAC forms.
+
 ## Requirements
 Linux, `gcc`, `flex`, `bison`, `make` (`sudo apt install gcc flex bison make`).
 

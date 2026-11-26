@@ -30,6 +30,44 @@ static int tok(int t) {
     return t;
 }
 
+/* #define NAME literal   (object-like macros whose value is a number or a char) */
+typedef struct Macro { char *name; int tok; int ival; double fval; struct Macro *next; } Macro;
+static Macro *macros = NULL;
+
+static void add_define(const char *line) {
+    const char *p = strstr(line, "define") + 6;
+    while (*p == ' ' || *p == '\t') p++;
+    const char *ns = p;
+    while (*p == '_' || (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9')) p++;
+    if (p == ns || *p == '(') return;                    /* function-like macros are not supported */
+    char name[128]; size_t nl = (size_t)(p - ns); if (nl >= sizeof name) return;
+    memcpy(name, ns, nl); name[nl] = 0;
+    while (*p == ' ' || *p == '\t' || *p == '(') p++;
+    int neg = 0;
+    if (*p == '-') { neg = 1; p++; }
+    Macro m = { 0 };
+    if (*p == '\'') {
+        if (p[1] == '\\') m.ival = char_value(p + 1); else m.ival = (unsigned char)p[1];
+        m.tok = INT_LIT;
+    } else if (*p >= '0' && *p <= '9') {
+        char *end;
+        double d = strtod(p, &end);
+        int is_float = 0;
+        for (const char *q = p; q < end; q++) if (*q == '.' || *q == 'e' || *q == 'E') is_float = 1;
+        if (is_float) { m.tok = FLOAT_LIT; m.fval = neg ? -d : d; }
+        else          { m.tok = INT_LIT;   m.ival = (int)(neg ? -d : d); }
+    } else if (strncmp(p, "true", 4) == 0)  { m.tok = TRUE_LIT; }
+    else if (strncmp(p, "false", 5) == 0)   { m.tok = FALSE_LIT; }
+    else return;
+    Macro *nm = malloc(sizeof *nm);
+    *nm = m; nm->name = strdup(name); nm->next = macros; macros = nm;
+}
+
+static Macro *find_macro(const char *name) {
+    for (Macro *m = macros; m; m = m->next) if (strcmp(m->name, name) == 0) return m;
+    return NULL;
+}
+
 /* give every token its line number for the parser (@n.first_line) */
 #define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno;
 %}
@@ -41,6 +79,9 @@ ID      [A-Za-z_][A-Za-z0-9_]*
 
 %%
 
+"long"[ \t]+"double"                              { return tok(FLOAT); }
+("long"|"short")([ \t]+"long")?([ \t]+"int")?     { return tok(INT); }  /* long, long long, short int ... */
+"const"|"signed"|"unsigned"|"static"|"register"   { /* qualifiers: ignored */ }
 "int"       { return tok(INT); }
 "char"      { return tok(INT); }     /* C compatibility: char is stored as an int (use %c to print it) */
 "float"     { return tok(FLOAT); }
@@ -54,6 +95,13 @@ ID      [A-Za-z_][A-Za-z0-9_]*
 "else"      { return tok(ELSE); }
 "while"     { return tok(WHILE); }
 "print"     { return tok(PRINT); }
+"scanf"     { return tok(SCANF); }
+"do"        { return tok(DO); }
+"break"     { return tok(BREAK); }
+"continue"  { return tok(CONTINUE); }
+"switch"    { return tok(SWITCH); }
+"case"      { return tok(CASE); }
+"default"   { return tok(DEFAULT); }
 "true"      { return tok(TRUE_LIT); }
 "false"     { return tok(FALSE_LIT); }
 
@@ -72,7 +120,15 @@ ID      [A-Za-z_][A-Za-z0-9_]*
         yylval.ival = (int)v;
         return tok(INT_LIT);
     }
-{ID}                  { yylval.sval = strdup(yytext); return tok(ID); }
+{ID}                  {
+        Macro *m = find_macro(yytext);
+        if (m) {                                   /* #define'd constant */
+            if (m->tok == INT_LIT)   yylval.ival = m->ival;
+            if (m->tok == FLOAT_LIT) yylval.fval = m->fval;
+            return tok(m->tok);
+        }
+        yylval.sval = strdup(yytext); return tok(ID);
+    }
 
 \"([^\"\\\n]|\\.)*\"   { char *q = malloc(yyleng); memcpy(q, yytext + 1, yyleng - 2); q[yyleng - 2] = 0;
                           yylval.sval = q; return tok(STRING_LIT); }
@@ -82,7 +138,7 @@ ID      [A-Za-z_][A-Za-z0-9_]*
 '([^'\\\n]|\\.)'       { yylval.ival = char_value(yytext + 1); return tok(INT_LIT); }
 
 "#"[ \t]*"include"[^\n]*   { /* C preprocessor line: ignored */ }
-"#"[ \t]*"define"[^\n]*    { /* C preprocessor line: ignored */ }
+"#"[ \t]*"define"[^\n]*    { add_define(yytext); }
 
 "++"  { return tok(INC); }
 "--"  { return tok(DEC); }
@@ -98,7 +154,7 @@ ID      [A-Za-z_][A-Za-z0-9_]*
 "<="  { return tok(LE); }
 ">="  { return tok(GE); }
 [<>=!+\-*/%]  { return tok(yytext[0]); }
-[{}();,]      { return tok(yytext[0]); }
+[{}();,\[\]&?:]  { return tok(yytext[0]); }
 
 "//".*                  { /* single-line comment: discarded */ }
 "/*"                    { BEGIN(BLOCK_COMMENT); }

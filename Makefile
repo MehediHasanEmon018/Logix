@@ -9,7 +9,7 @@ all: $(TARGET)
 SRCS    = src/main.c src/ast/ast.c src/symtab/symtab.c src/semantic/semantic.c src/icg/icg.c src/interp/interp.c
 
 $(TARGET): $(BUILD)/lex.yy.c $(BUILD)/parser.tab.c $(SRCS)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@ -lm
 
 $(BUILD)/parser.tab.c $(BUILD)/parser.tab.h: src/parser/parser.y | $(BUILD)
 	bison -d -o $(BUILD)/parser.tab.c $<

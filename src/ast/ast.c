@@ -28,6 +28,47 @@ Node *mk_bool(int v, int l) { Node *n = new_node(N_BOOL, l); n->ival = v; return
 Node *mk_str(char *t, int l) { Node *n = new_node(N_STR, l); n->name = t; return n; }
 Node *mk_return(Node *e, int l) { Node *n = new_node(N_RETURN, l); n->a = e; return n; }
 
+Node *mk_array_decl(char *name, Node *size, Node *init, int l) {
+    Node *n = mk_decl(T_NONE, name, l); n->is_array = 1; n->b = size; n->c = init; return n;
+}
+Node *mk_assign_lv(Node *lv, Node *e, int l) {
+    Node *n = mk_assign(lv->name, e, l);
+    if (lv->kind == N_INDEX) n->b = lv->a;      /* a[i] = e : index in ->b */
+    return n;
+}
+Node *mk_for_loop(Node *c, Node *b, Node *step, int l) { Node *n = mk_while(c, b, l); n->c = step; return n; }
+Node *mk_dowhile(Node *b, Node *c, int l) { Node *n = new_node(N_DOWHILE, l); n->a = c; n->b = b; return n; }
+Node *mk_ternary(Node *c, Node *x, Node *y, int l) { Node *n = new_node(N_TERNARY, l); n->a = c; n->b = x; n->c = y; return n; }
+Node *mk_index(char *name, Node *i, int l) { Node *n = new_node(N_INDEX, l); n->name = name; n->a = i; return n; }
+Node *mk_func(Type ret, char *name, Node *params, Node *body, int l) {
+    Node *n = new_node(N_FUNC, l); n->type = ret; n->name = name; n->a = params; n->b = body; return n;
+}
+Node *mk_param(Type t, char *name, int arr, int l) { Node *n = new_node(N_PARAM, l); n->type = t; n->name = name; n->is_array = arr; return n; }
+Node *mk_call(char *name, Node *args, int l) { Node *n = new_node(N_CALL, l); n->name = name; n->a = args; return n; }
+Node *mk_expr_stmt(Node *e, int l) { Node *n = new_node(N_EXPR_STMT, l); n->a = e; return n; }
+Node *mk_jump(NodeKind k, int l) { return new_node(k, l); }
+Node *mk_switch(Node *e, Node *cases, int l) { Node *n = new_node(N_SWITCH, l); n->a = e; n->b = cases; return n; }
+Node *mk_case(Node *v, Node *s, int l) { Node *n = new_node(N_CASE, l); n->a = v; n->b = s; return n; }
+
+/* scanf("%d %f", &x, &a[i])  ->  one N_SCAN whose targets carry their conversion spec in ->op */
+Node *mk_scanf(char *fmt, Node *targets, int l) {
+    Node *n = new_node(N_SCAN, l);
+    n->a = targets;
+    Node *t = targets;
+    for (const char *p = fmt; *p && t; p++) {
+        if (*p != '%') continue;
+        if (p[1] == '%') { p++; continue; }
+        const char *q = p + 1;
+        while (*q && strchr("0123456789lhL*", *q)) q++;
+        if (!*q) break;
+        t->op = (*q == 'c') ? "c" : strchr("feEgG", *q) ? "f" : "d";
+        t = t->next;
+        p = q;
+    }
+    for (; t; t = t->next) t->op = "d";   /* more targets than specs: read ints */
+    return n;
+}
+
 /* printf("a %d b\n", x)  ->  print "a "; print x; print " b\n"; */
 Node *mk_printf(char *fmt, Node *args, int l) {
     Node *out = NULL;
@@ -71,7 +112,8 @@ Node *list_append(Node *list, Node *item) {
 }
 
 const char *type_name(Type t) {
-    switch (t) { case T_INT: return "int"; case T_FLOAT: return "float"; case T_BOOL: return "bool"; default: return "none"; }
+    switch (t) { case T_INT: return "int"; case T_FLOAT: return "float"; case T_BOOL: return "bool";
+                 case T_VOID: return "void"; default: return "none"; }
 }
 
 static void indent(int d) { for (int i = 0; i < d; i++) printf("  "); }
@@ -81,10 +123,14 @@ static void print_one(const Node *n, int d) {
     switch (n->kind) {
     case N_PROGRAM: printf("Program\n"); ast_print(n->a, d + 1); break;
     case N_BLOCK:   printf("Block\n");   ast_print(n->a, d + 1); break;
-    case N_DECL:    printf("Decl %s %s (line %d)\n", type_name(n->type), n->name, n->line);
+    case N_DECL:    printf("Decl %s %s%s (line %d)\n", type_name(n->type), n->name, n->is_array ? "[]" : "", n->line);
+                    if (n->b) { indent(d + 1); printf("Size:\n"); print_one(n->b, d + 2); }
                     if (n->a) { indent(d + 1); printf("Init:\n"); print_one(n->a, d + 2); }
+                    if (n->c) { indent(d + 1); printf("InitList:\n"); ast_print(n->c, d + 2); }
                     break;
-    case N_ASSIGN:  printf("Assign %s (line %d)\n", n->name, n->line); print_one(n->a, d + 1); break;
+    case N_ASSIGN:  printf("Assign %s%s (line %d)\n", n->name, n->b ? "[]" : "", n->line);
+                    if (n->b) { indent(d + 1); printf("Index:\n"); print_one(n->b, d + 2); }
+                    print_one(n->a, d + 1); break;
     case N_PRINT:   printf("Print%s%s (line %d)\n", n->name ? " " : "", n->name ? n->name : "", n->line); print_one(n->a, d + 1); break;
     case N_IF:
         printf("If (line %d)\n", n->line);
@@ -96,6 +142,36 @@ static void print_one(const Node *n, int d) {
         printf("While (line %d)\n", n->line);
         indent(d + 1); printf("Cond:\n"); print_one(n->a, d + 2);
         indent(d + 1); printf("Body:\n"); ast_print(n->b, d + 2);
+        if (n->c) { indent(d + 1); printf("Step:\n"); ast_print(n->c, d + 2); }
+        break;
+    case N_DOWHILE:
+        printf("DoWhile (line %d)\n", n->line);
+        indent(d + 1); printf("Body:\n"); ast_print(n->b, d + 2);
+        indent(d + 1); printf("Cond:\n"); print_one(n->a, d + 2);
+        break;
+    case N_FUNC:
+        printf("Function %s %s%s (line %d)\n", type_name(n->type), n->name, n->b ? "" : " [prototype]", n->line);
+        if (n->a) { indent(d + 1); printf("Params:\n"); ast_print(n->a, d + 2); }
+        if (n->b) { indent(d + 1); printf("Body:\n"); print_one(n->b, d + 2); }
+        break;
+    case N_PARAM: printf("Param %s %s%s\n", type_name(n->type), n->name ? n->name : "?", n->is_array ? "[]" : ""); break;
+    case N_CALL:  printf("Call %s\n", n->name); ast_print(n->a, d + 1); break;
+    case N_INDEX: printf("Index %s\n", n->name); print_one(n->a, d + 1); break;
+    case N_SCAN:  printf("Scan (line %d)\n", n->line); ast_print(n->a, d + 1); break;
+    case N_EXPR_STMT: printf("ExprStmt (line %d)\n", n->line); print_one(n->a, d + 1); break;
+    case N_BREAK:    printf("Break (line %d)\n", n->line); break;
+    case N_CONTINUE: printf("Continue (line %d)\n", n->line); break;
+    case N_SWITCH:
+        printf("Switch (line %d)\n", n->line);
+        print_one(n->a, d + 1);
+        ast_print(n->b, d + 1);
+        break;
+    case N_CASE:
+        if (n->a) { printf("Case\n"); print_one(n->a, d + 1); } else printf("Default\n");
+        ast_print(n->b, d + 1);
+        break;
+    case N_TERNARY:
+        printf("Ternary\n"); print_one(n->a, d + 1); print_one(n->b, d + 1); print_one(n->c, d + 1);
         break;
     case N_BINOP: printf("BinOp '%s'\n", n->op); print_one(n->a, d + 1); print_one(n->b, d + 1); break;
     case N_UNOP:  printf("UnOp '%s'\n", n->op);  print_one(n->a, d + 1); break;

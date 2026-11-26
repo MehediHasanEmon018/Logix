@@ -43,13 +43,19 @@ function authUser(req) {
 }
 
 
-function runBin(file, flag) {
-    return new Promise(resolve => execFile(BIN, flag ? [file, flag] : [file], { timeout: 5000, maxBuffer: 1 << 20 },
-        (err, stdout, stderr) => resolve({ err, stdout, stderr })));
+// input: text given to the program's stdin (for scanf). stdin is always closed so a
+// program that reads more than it was given gets EOF instead of hanging until the timeout.
+function runBin(file, flag, input) {
+    return new Promise(resolve => {
+        const child = execFile(BIN, flag ? [file, flag] : [file], { timeout: 5000, maxBuffer: 1 << 20 },
+            (err, stdout, stderr) => resolve({ err, stdout, stderr }));
+        child.stdin.on("error", () => {});
+        child.stdin.end(input || "");
+    });
 }
 const stripTac = (out, tac) => (tac && out.endsWith(tac) ? out.slice(0, out.length - tac.length) : out);
 
-async function compile(code) {
+async function compile(code, input) {
     const file = path.join(os.tmpdir(), "logix-" + crypto.randomUUID() + ".mc");
     fs.writeFileSync(file, code);
     try {
@@ -60,7 +66,7 @@ async function compile(code) {
             const errors = main.stderr.split("\n").map(x => x.trim()).filter(Boolean);
             return { status: 200, data: { ok: false, errors: errors.length ? errors : ["Compilation failed."] } };
         }
-        const [a, st, prog] = await Promise.all([runBin(file, "--ast"), runBin(file, "--symtab"), runBin(file, "--run")]);
+        const [a, st, prog] = await Promise.all([runBin(file, "--ast"), runBin(file, "--symtab"), runBin(file, "--run", input)]);
         let output = prog.stdout || "";
         if (prog.err && prog.stderr) output += (output && !output.endsWith("\n") ? "\n" : "") + prog.stderr.trim();
         return { status: 200, data: { ok: true, output, runtimeError: !!prog.err, tac: main.stdout, ast: stripTac(a.stdout, main.stdout), symtab: stripTac(st.stdout, main.stdout), errors: [] } };
@@ -99,7 +105,8 @@ async function api(req, res, route) {
         const code = body && body.code;
         if (typeof code !== "string" || !code.trim()) return fail(res, 400, "Source code is required.");
         if (code.length > 100000) return fail(res, 413, "Source code too large.");
-        const r = await compile(code);
+        const input = typeof body.input === "string" ? body.input : "";
+        const r = await compile(code, input);
         if (r.status === 200) { const a = authUser(req); if (a) a.user.runs = (a.user.runs || 0) + 1; }
         return send(res, r.status, r.data);
     }
