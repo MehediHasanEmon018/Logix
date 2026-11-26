@@ -1,10 +1,13 @@
-
 (function (global) {
     "use strict";
 
     var CONFIG = {
         
-        API_BASE: global.LOGIX_API_BASE || "/api",
+        // Same-origin /api when the site is served by the Logix server (port 3000).
+        // Opened from anywhere else (VS Code Live Server :5500, file://) -> talk to the Logix server directly.
+        API_BASE: global.LOGIX_API_BASE ||
+            ((location.protocol === "file:" || (location.port && location.port !== "3000" && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)))
+                ? "http://localhost:3000/api" : "/api"),
         TOKEN_KEY: "logix_token",
         USER_KEY: "logix_user",
         LOGIN_PAGE: "login.html",
@@ -175,7 +178,7 @@
     }
 
     // Wires an editor page to the compiler.
-    // opts: { runBtn, code (textarea), output (textarea), view (optional <select> with tac|ast|symtab) }
+    // opts: { runBtn, code (textarea), output (textarea), view (optional <select> with output|tac|ast|symtab) }
     function attachCompiler(opts) {
         var last = null;
 
@@ -188,7 +191,13 @@
                 out.value = asLines(last.errors) || "Compilation failed.";
                 return;
             }
-            var which = opts.view ? opts.view.value : "tac";
+            var which = opts.view ? opts.view.value : "output";
+            if (which === "output") {
+                if (last.runtimeError) out.classList.add("error");
+                var o = last.output == null ? "" : String(last.output);
+                out.value = o ? o : "(program printed nothing)";
+                return;
+            }
             var text = which === "ast" ? asLines(last.ast)
                      : which === "symtab" ? asLines(last.symtab)
                      : asLines(last.tac);
