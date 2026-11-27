@@ -1,18 +1,16 @@
 /* Logix semantic analyzer
- * Detects: undeclared variable, redeclaration, scope violation,
+ * Detects: undeclared variable / function, redeclaration, scope violation,
  *          type mismatch, invalid assignment, invalid expression,
- *          and for the C extensions: wrong function calls (unknown function,
- *          argument count/type), bad returns, array misuse, break/continue
- *          outside a loop. */
+ *          wrong argument count / type in calls, bad return, bad array use,
+ *          break / continue outside a loop, scanf format problems. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 #include "semantic/semantic.h"
 #include "symtab/symtab.h"
 
 static int errors = 0;
-static Node *cur_func = NULL;      /* function whose body is being checked (NULL at top level) */
-static int loop_depth = 0, switch_depth = 0, block_depth = 0;
 
 static void err(int line, const char *fmt, ...) {
     va_list ap;
@@ -26,20 +24,51 @@ static void err(int line, const char *fmt, ...) {
 
 static int is_num(Type t) { return t == T_INT || t == T_FLOAT; }
 static int is(const char *a, const char *b) { return strcmp(a, b) == 0; }
-/* may a value of type 'from' be stored into 'to'?  (int -> float widening is allowed) */
+/* a value of type 'from' may be stored in something of type 'to' (int widens to float) */
 static int assignable(Type to, Type from) { return to == from || (to == T_FLOAT && from == T_INT); }
 
-/* built-in math functions (from <math.h> / <stdlib.h>) */
-typedef struct { const char *name; Type ret; int nargs; Type arg; } Builtin;
-static const Builtin builtins[] = {
-    { "sqrt",  T_FLOAT, 1, T_FLOAT }, { "pow",  T_FLOAT, 2, T_FLOAT },
-    { "fabs",  T_FLOAT, 1, T_FLOAT }, { "floor", T_FLOAT, 1, T_FLOAT },
-    { "ceil",  T_FLOAT, 1, T_FLOAT }, { "abs",  T_INT,   1, T_INT   },
-};
-static const Builtin *find_builtin(const char *name) {
-    for (size_t i = 0; i < sizeof builtins / sizeof builtins[0]; i++)
-        if (is(builtins[i].name, name)) return &builtins[i];
+/* ---- function table (functions can be called before their definition) ---- */
+
+typedef struct Func {
+    char *name; Type ret; int line;
+    int nparams; Type *pt; int *pa;
+    int defined;
+    struct Func *next;
+} Func;
+static Func *funcs;
+
+static Func *find_func(const char *name) {
+    for (Func *f = funcs; f; f = f->next) if (is(f->name, name)) return f;
     return NULL;
+}
+
+static int count_list(const Node *n) { int c = 0; for (; n; n = n->next) c++; return c; }
+
+static void register_func(Node *n) {
+    Func *old = find_func(n->name);
+    int np = count_list(n->a);
+    if (old) {
+        if (n->b && old->defined) err(n->line, "redefinition of function '%s' (first defined at line %d)", n->name, old->line);
+        else if (old->nparams != np || old->ret != n->type) err(n->line, "conflicting declaration of function '%s'", n->name);
+        if (n->b) { old->defined = 1; old->line = n->line; }
+        return;
+    }
+    Func *f = calloc(1, sizeof *f);
+    if (!f) { fprintf(stderr, "out of memory\n"); exit(2); }
+    f->name = n->name; f->ret = n->type; f->line = n->line; f->nparams = np; f->defined = n->b != NULL;
+    f->pt = calloc(np ? np : 1, sizeof(Type)); f->pa = calloc(np ? np : 1, sizeof(int));
+    int i = 0;
+    char sig[96]; snprintf(sig, sizeof sig, "%s(", type_name(n->type));
+    for (Node *p = n->a; p; p = p->next, i++) {
+        f->pt[i] = p->type; f->pa[i] = p->is_array;
+        strncat(sig, i ? "," : "", sizeof sig - strlen(sig) - 1);
+        strncat(sig, type_name(p->type), sizeof sig - strlen(sig) - 1);
+        if (p->is_array) strncat(sig, "[]", sizeof sig - strlen(sig) - 1);
+    }
+    strncat(sig, ")", sizeof sig - strlen(sig) - 1);
+    f->next = funcs; funcs = f;
+    Symbol *s = st_insert(n->name, n->type, n->line);   /* global scope: functions show up in --symtab */
+    s->is_func = 1; s->sig = strdup(sig);
 }
 
 /* undeclared variable vs. scope violation */
@@ -53,65 +82,82 @@ static void report_unknown(const char *name, int line) {
 
 static Type check_expr(Node *n);
 
-/* f(a, b, ...) */
-static Type check_call(Node *n) {
-    Symbol *s = st_lookup(n->name);
-    int nargs = 0;
-    for (Node *a = n->a; a; a = a->next) nargs++;
+/* name must be a declared variable; returns NULL after reporting */
+static Symbol *lookup_var(const char *name, int line) {
+    Symbol *s = st_lookup(name);
+    if (!s) { report_unknown(name, line); return NULL; }
+    if (s->is_func) { err(line, "'%s' is a function, not a variable", name); return NULL; }
+    return s;
+}
 
-    if (!s || !s->is_func) {
-        const Builtin *b = s ? NULL : find_builtin(n->name);
-        if (!b) {
-            if (s) err(n->line, "'%s' is not a function", n->name);
-            else   err(n->line, "undeclared function '%s'", n->name);
-            for (Node *a = n->a; a; a = a->next) check_expr(a);
-            return n->type = T_NONE;
-        }
-        if (nargs != b->nargs) {
-            err(n->line, "function '%s' expects %d argument(s), got %d", n->name, b->nargs, nargs);
-            return n->type = T_NONE;
-        }
-        for (Node *a = n->a; a; a = a->next) {
-            Type t = check_expr(a);
-            if (t != T_NONE && !assignable(b->arg, t))
-                err(a->line, "type mismatch: argument of '%s' must be '%s', got '%s'",
-                    n->name, type_name(b->arg), type_name(t));
-        }
-        return n->type = b->ret;
-    }
+static void check_index(Node *idx) {
+    Type it = check_expr(idx);
+    if (it != T_NONE && it != T_INT)
+        err(idx->line, "array index must be int, got '%s'", type_name(it));
+}
 
-    Node *f = s->func;
-    if (is(n->name, "main")) { err(n->line, "calling 'main' is not supported"); return n->type = T_NONE; }
-    int nparams = 0;
-    for (Node *p = f->a; p; p = p->next) nparams++;
-    if (nargs != nparams) {
-        err(n->line, "function '%s' expects %d argument(s), got %d", n->name, nparams, nargs);
-        for (Node *a = n->a; a; a = a->next) check_expr(a);
+/* built-in math functions (<math.h> / <stdlib.h>, Java Math.*): user functions with the same name win */
+typedef struct { const char *name; int nargs; int ret; } Builtin;     /* ret: 'f' float, 'a' like the arguments */
+static const Builtin builtins[] = {
+    { "sqrt", 1, 'f' }, { "pow", 2, 'f' }, { "fabs", 1, 'f' }, { "floor", 1, 'f' }, { "ceil", 1, 'f' },
+    { "abs", 1, 'a' }, { "max", 2, 'a' }, { "min", 2, 'a' },
+};
+static Type check_builtin(Node *n, const Builtin *b, int given) {
+    if (given != b->nargs) {
+        err(n->line, "function '%s' expects %d argument(s), got %d", n->name, b->nargs, given);
         return n->type = T_NONE;
     }
-    Node *p = f->a;
-    int idx = 1;
-    for (Node *a = n->a; a; a = a->next, p = p->next, idx++) {
-        if (p->is_array) {
-            Symbol *as = (a->kind == N_ID) ? st_lookup(a->name) : NULL;
-            if (!as || !as->is_array) {
-                if (a->kind == N_ID && !as) report_unknown(a->name, a->line);
-                else err(a->line, "argument %d of '%s' must be an array", idx, n->name);
+    Type res = T_INT; int bad = 0;
+    for (Node *a = n->a; a; a = a->next) {
+        Type t = check_expr(a);
+        if (t == T_NONE) { bad = 1; continue; }
+        if (!is_num(t)) { err(a->line, "type mismatch: '%s' needs a number, got '%s'", n->name, type_name(t)); bad = 1; }
+        if (t == T_FLOAT) res = T_FLOAT;
+    }
+    if (bad) return n->type = T_NONE;
+    return n->type = (b->ret == 'f') ? T_FLOAT : res;
+}
+
+/* a call used as a value (want_value) or as a statement */
+static Type check_call(Node *n, int want_value) {
+    Func *f = find_func(n->name);
+    int given = count_list(n->a);
+    if (!f)
+        for (size_t i = 0; i < sizeof builtins / sizeof builtins[0]; i++)
+            if (is(builtins[i].name, n->name)) return check_builtin(n, &builtins[i], given);
+    if (!f) {
+        err(n->line, "undeclared function '%s'", n->name);
+        for (Node *a = n->a; a; a = a->next) if (!(a->kind == N_ID && st_lookup(a->name) && st_lookup(a->name)->is_array)) check_expr(a);
+        return T_NONE;
+    }
+    if (given != f->nparams)
+        err(n->line, "function '%s' expects %d argument(s), got %d", n->name, f->nparams, given);
+    int i = 0;
+    for (Node *a = n->a; a; a = a->next, i++) {
+        int want_arr = (i < f->nparams) && f->pa[i];
+        if (a->kind == N_ID) {
+            Symbol *s = st_lookup(a->name);
+            if (s && s->is_array) {
+                a->type = s->type;
+                if (i < f->nparams && !want_arr)
+                    err(a->line, "argument %d of '%s' is the array '%s' but a single value is expected", i + 1, n->name, a->name);
+                else if (want_arr && s->type != f->pt[i])
+                    err(a->line, "type mismatch: argument %d of '%s' expects '%s[]', got '%s[]'", i + 1, n->name, type_name(f->pt[i]), type_name(s->type));
                 continue;
             }
-            a->type = as->type;
-            if (as->type != p->type)
-                err(a->line, "type mismatch: argument %d of '%s' must be a '%s' array, got a '%s' array",
-                    idx, n->name, type_name(p->type), type_name(as->type));
-            continue;
         }
-        Type t = check_expr(a);
-        if (t != T_NONE && !assignable(p->type, t))
-            err(a->line, "type mismatch: argument %d of '%s' must be '%s', got '%s'",
-                idx, n->name, type_name(p->type), type_name(t));
+        Type at = check_expr(a);
+        if (i >= f->nparams || at == T_NONE) continue;
+        if (want_arr)
+            err(a->line, "argument %d of '%s' must be an array of '%s'", i + 1, n->name, type_name(f->pt[i]));
+        else if (!assignable(f->pt[i], at))
+            err(a->line, "type mismatch: argument %d of '%s' expects '%s', got '%s'", i + 1, n->name, type_name(f->pt[i]), type_name(at));
     }
-    n->ref = f;
-    return n->type = f->type;
+    if (want_value && f->ret == T_VOID) {
+        err(n->line, "function '%s' returns void and cannot be used as a value", n->name);
+        return n->type = T_NONE;
+    }
+    return n->type = f->ret;
 }
 
 static Type check_expr(Node *n) {
@@ -119,46 +165,53 @@ static Type check_expr(Node *n) {
     case N_INT:   return n->type = T_INT;
     case N_FLOAT: return n->type = T_FLOAT;
     case N_BOOL:  return n->type = T_BOOL;
-    case N_STR:   return n->type = T_NONE;     /* only legal inside print */
+    case N_STR:                                 /* only legal inside print (N_PRINT skips this check) */
+        err(n->line, "a string can only be printed here (String variables / operations are not supported)");
+        return n->type = T_NONE;
+
+    case N_TERNARY: {                           /* c ? x : y */
+        Type c = check_expr(n->a), x = check_expr(n->b), y = check_expr(n->c);
+        if (c != T_NONE && c != T_BOOL) err(n->line, "condition of '?:' must be bool, got '%s'", type_name(c));
+        if (x == T_NONE || y == T_NONE) return n->type = T_NONE;
+        if (is_num(x) && is_num(y)) return n->type = (x == T_FLOAT || y == T_FLOAT) ? T_FLOAT : T_INT;
+        if (x == y && x != T_VOID) return n->type = x;
+        err(n->line, "type mismatch: '?:' branches are '%s' and '%s'", type_name(x), type_name(y));
+        return n->type = T_NONE;
+    }
+    case N_LENGTH: {                            /* Java: arr.length */
+        Symbol *s = lookup_var(n->name, n->line);
+        if (!s) return n->type = T_NONE;
+        if (!s->is_array) { err(n->line, "'%s' is not an array, it has no .length", n->name); return n->type = T_NONE; }
+        return n->type = T_INT;
+    }
 
     case N_ID: {
-        Symbol *s = st_lookup(n->name);
-        if (!s) { report_unknown(n->name, n->line); return n->type = T_NONE; }
-        if (s->is_func)  { err(n->line, "function '%s' used as a variable", n->name); return n->type = T_NONE; }
-        if (s->is_array) { err(n->line, "array '%s' used without an index", n->name); return n->type = T_NONE; }
+        Symbol *s = lookup_var(n->name, n->line);
+        if (!s) return n->type = T_NONE;
+        if (s->is_array) {
+            err(n->line, "array '%s' cannot be used as a value (index it, or pass it to a function)", n->name);
+            return n->type = T_NONE;
+        }
         return n->type = s->type;
     }
 
     case N_INDEX: {
-        Symbol *s = st_lookup(n->name);
-        Type it = check_expr(n->a);
-        if (!s) { report_unknown(n->name, n->line); return n->type = T_NONE; }
+        Symbol *s = lookup_var(n->name, n->line);
+        check_index(n->a);
+        if (!s) return n->type = T_NONE;
         if (!s->is_array) { err(n->line, "'%s' is not an array", n->name); return n->type = T_NONE; }
-        if (it != T_NONE && it != T_INT)
-            err(n->line, "array index must be 'int', got '%s'", type_name(it));
         return n->type = s->type;
     }
 
     case N_CALL:
-        return check_call(n);
-
-    case N_TERNARY: {
-        Type c = check_expr(n->a), x = check_expr(n->b), y = check_expr(n->c);
-        if (c != T_NONE && c != T_BOOL)
-            err(n->line, "condition of '?:' must be bool, got '%s'", type_name(c));
-        if (x == T_NONE || y == T_NONE) return n->type = T_NONE;
-        if (is_num(x) && is_num(y)) return n->type = (x == T_FLOAT || y == T_FLOAT) ? T_FLOAT : T_INT;
-        if (x == y && x != T_VOID) return n->type = x;
-        err(n->line, "type mismatch: '?:' branches have types '%s' and '%s'", type_name(x), type_name(y));
-        return n->type = T_NONE;
-    }
+        return check_call(n, 1);
 
     case N_UNOP: {
         Type t = check_expr(n->a);
         if (t == T_NONE) return n->type = T_NONE;      /* already reported */
-        if (n->op[0] == '(') {                          /* cast: (int) x, (float) x */
-            if (is(n->op, "(bool)") || !is_num(t)) {
-                err(n->line, "invalid expression: cannot cast '%s' to '%s'", type_name(t), n->op);
+        if (n->op[0] == '(') {                          /* Java cast: (int) x, (double) x */
+            if (!is_num(t)) {
+                err(n->line, "invalid expression: cannot cast '%s' to %s", type_name(t), n->op);
                 return n->type = T_NONE;
             }
             return n->type = is(n->op, "(float)") ? T_FLOAT : T_INT;
@@ -227,19 +280,20 @@ static Type check_expr(Node *n) {
 
 static void check_stmts(Node *n);
 
+static int switch_depth = 0;   /* > 0 inside switch: break is legal */
+static int loop_depth = 0;     /* > 0 inside while / for / do-while: break and continue are legal */
+static int nest = 0;           /* > 0 inside a block or function body: nested function definitions are illegal */
+static Type cur_ret = T_NONE;  /* return type of the function being checked (T_NONE: top level / main) */
+
 /* body of if/while: a lone statement gets its own scope; a block opens one itself */
 static void check_body(Node *n) {
     if (!n) return;
     if (n->kind == N_BLOCK) { check_stmts(n); return; }
     st_enter();
+    nest++;
     check_stmts(n);
+    nest--;
     st_exit();
-}
-
-static void check_loop_body(Node *n) {
-    loop_depth++;
-    check_body(n);
-    loop_depth--;
 }
 
 static void check_condition(Node *cond, const char *what) {
@@ -250,128 +304,107 @@ static void check_condition(Node *cond, const char *what) {
 
 static void check_decl(Node *n) {
     if (n->is_array) {
-        int count = 0;
-        if (n->b) {
-            Type st = check_expr(n->b);
-            if (st != T_NONE && st != T_INT)
-                err(n->line, "size of array '%s' must be 'int', got '%s'", n->name, type_name(st));
-            else if (n->b->kind == N_INT && n->b->ival <= 0)
-                err(n->line, "size of array '%s' must be positive", n->name);
-        }
-        for (Node *e = n->c; e; e = e->next) {
-            count++;
+        int count = count_list(n->b);
+        if (n->size == 0 && n->b) n->size = count;                /* int a[] = {1, 2, 3}; */
+        if (n->size <= 0) err(n->line, "array '%s' must have a positive size", n->name);
+        else if (count > n->size) err(n->line, "too many initializers for array '%s' (size %d, got %d)", n->name, n->size, count);
+        for (Node *e = n->b; e; e = e->next) {
             Type et = check_expr(e);
             if (et != T_NONE && !assignable(n->type, et))
-                err(e->line, "type mismatch: cannot initialize element of '%s' array '%s' with '%s'",
-                    type_name(n->type), n->name, type_name(et));
+                err(e->line, "type mismatch: cannot initialize '%s' array '%s' with '%s'", type_name(n->type), n->name, type_name(et));
         }
-        if (n->b && n->b->kind == N_INT && count > n->b->ival)
-            err(n->line, "too many initializers for array '%s' (size %d, got %d)", n->name, n->b->ival, count);
+        Symbol *old = st_lookup_current(n->name);
+        if (old) err(n->line, "redeclaration of '%s' (first declared at line %d)", n->name, old->line);
+        else { Symbol *s = st_insert(n->name, n->type, n->line); s->is_array = 1; s->size = n->size; }
+        return;
     }
     /* initializer is checked BEFORE the name is inserted, so
      * "int x = x;" correctly reports x as undeclared */
-    Type it = (!n->is_array && n->a) ? check_expr(n->a) : T_NONE;
+    Type it = n->a ? check_expr(n->a) : T_NONE;
     Symbol *old = st_lookup_current(n->name);
     if (old)
         err(n->line, "redeclaration of '%s' (first declared at line %d)", n->name, old->line);
-    else {
-        Symbol *s = st_insert(n->name, n->type, n->line);
-        s->is_array = n->is_array;
-    }
-    if (!n->is_array && n->a && it != T_NONE && !assignable(n->type, it))
+    else
+        st_insert(n->name, n->type, n->line);
+    if (n->a && it != T_NONE && !assignable(n->type, it))
         err(n->line, "type mismatch: cannot initialize '%s' variable '%s' with '%s'",
             type_name(n->type), n->name, type_name(it));
 }
 
-static void check_assign(Node *n) {
-    Symbol *s = st_lookup(n->name);
-    if (!s) report_unknown(n->name, n->line);
-    else if (s->is_func) { err(n->line, "cannot assign to function '%s'", n->name); s = NULL; }
-    else if (n->b && !s->is_array) { err(n->line, "'%s' is not an array", n->name); s = NULL; }
-    else if (!n->b && s->is_array) { err(n->line, "invalid assignment: cannot assign to array '%s' (use an index)", n->name); s = NULL; }
-    if (n->b) {
-        Type it = check_expr(n->b);
-        if (it != T_NONE && it != T_INT) err(n->line, "array index must be 'int', got '%s'", type_name(it));
-    }
-    Type rt = check_expr(n->a);
-    if (s && rt != T_NONE) {
-        n->type = s->type;
-        if (!assignable(s->type, rt))
-            err(n->line, "invalid assignment: cannot assign '%s' to '%s' variable '%s'",
-                type_name(rt), type_name(s->type), n->name);
-    }
-}
-
 static void check_scan(Node *n) {
-    for (Node *t = n->a; t; t = t->next) {
-        Type ty = check_expr(t);
-        if (ty == T_NONE) continue;
-        if (ty == T_BOOL) err(t->line, "scanf cannot read into bool variable '%s'", t->name);
-        else if (ty == T_FLOAT && t->op && t->op[0] != 'f')
-            err(t->line, "type mismatch: scanf reads a whole number into float variable '%s' (use %%f)", t->name);
-        else if (ty == T_INT && t->op && t->op[0] == 'f')
-            err(t->line, "type mismatch: scanf reads a float into int variable '%s' (use %%d)", t->name);
-    }
+    Symbol *s = lookup_var(n->name, n->line);
+    if (n->b) check_index(n->b);
+    if (!s) return;
+    if (n->b && !s->is_array) { err(n->line, "'%s' is not an array", n->name); return; }
+    if (!n->b && s->is_array) { err(n->line, "scanf needs an element of array '%s', e.g. &%s[i]", n->name, n->name); return; }
+    n->type = s->type;
+    if (n->ival == 0)   { err(n->line, "scanf: no format specifier for argument '%s'", n->name); return; }
+    if (n->ival == '?') { err(n->line, "scanf: unsupported format for '%s' (use %%d, %%f or %%c)", n->name); return; }
+    if (s->type == T_BOOL) { err(n->line, "scanf cannot read into bool variable '%s'", n->name); return; }
+    if (n->ival == 'd' && s->type != T_INT)
+        err(n->line, "scanf: format '%%d' does not match '%s' variable '%s' (use %%f)", type_name(s->type), n->name);
+    else if (n->ival == 'f' && s->type != T_FLOAT)
+        err(n->line, "scanf: format '%%f' does not match '%s' variable '%s' (use %%d)", type_name(s->type), n->name);
+    else if ((n->ival == 'c' || n->ival == 'C') && s->type != T_INT)
+        err(n->line, "scanf: format '%%c' needs an int/char variable, '%s' is '%s'", n->name, type_name(s->type));
 }
 
-static void check_return(Node *n) {
-    Type t = n->a ? check_expr(n->a) : T_VOID;
-    if (!cur_func) return;                      /* top-level "return": just stops the program */
-    if (cur_func->type == T_VOID) {
-        if (n->a) err(n->line, "void function '%s' cannot return a value", cur_func->name);
-        return;
+static void check_func(Node *f) {
+    if (!f->b) return;                                    /* prototype: nothing to check */
+    Type saved_ret = cur_ret; int saved_loop = loop_depth;
+    int saved_switch = switch_depth;
+    cur_ret = f->type; loop_depth = 0; switch_depth = 0;
+    st_enter(); nest++;
+    for (Node *p = f->a; p; p = p->next) {
+        if (st_lookup_current(p->name))
+            err(p->line, "duplicate parameter name '%s' in function '%s'", p->name, f->name);
+        else { Symbol *s = st_insert(p->name, p->type, p->line); s->is_array = p->is_array; }
     }
-    if (!n->a) return;                          /* "return;" in a non-void function: allowed (like C) */
-    if (t != T_NONE && !assignable(cur_func->type, t))
-        err(n->line, "type mismatch: function '%s' returns '%s', got '%s'",
-            cur_func->name, type_name(cur_func->type), type_name(t));
-}
-
-static void check_func(Node *n) {
-    if (cur_func || block_depth > 0) {
-        err(n->line, "function '%s' must be defined at the top level", n->name);
-        return;
-    }
-    if (!n->b) return;                          /* prototype: registered by the pre-pass */
-    cur_func = n;
-    int saved_loop = loop_depth, saved_switch = switch_depth;
-    loop_depth = switch_depth = 0;
-    st_enter();                                 /* parameters + body share one scope (as in C) */
-    for (Node *p = n->a; p; p = p->next) {
-        if (!p->name) { err(n->line, "parameter of '%s' needs a name", n->name); continue; }
-        if (st_lookup_current(p->name)) { err(p->line, "duplicate parameter '%s'", p->name); continue; }
-        Symbol *s = st_insert(p->name, p->type, p->line);
-        s->is_array = p->is_array;
-    }
-    block_depth++;
-    check_stmts(n->b->a);
-    block_depth--;
-    st_exit();
-    loop_depth = saved_loop; switch_depth = saved_switch;
-    cur_func = NULL;
+    check_stmts(f->b->a);                                 /* body shares the parameter scope, like C */
+    nest--; st_exit();
+    cur_ret = saved_ret; loop_depth = saved_loop; switch_depth = saved_switch;
 }
 
 static void check_stmts(Node *n) {
     for (; n; n = n->next) {
         switch (n->kind) {
-        case N_DECL:   check_decl(n);   break;
-        case N_ASSIGN: check_assign(n); break;
-        case N_PRINT:
-            if (n->a->kind == N_ID) {   /* printing an array / function name directly */
-                Symbol *s = st_lookup(n->a->name);
-                if (s && (s->is_array || s->is_func)) { check_expr(n->a); break; }
+        case N_DECL:
+            check_decl(n);
+            break;
+        case N_ASSIGN: {
+            Symbol *s = lookup_var(n->name, n->line);
+            if (n->b) check_index(n->b);
+            if (s && n->b && !s->is_array) { err(n->line, "'%s' is not an array", n->name); s = NULL; }
+            else if (s && !n->b && s->is_array) { err(n->line, "cannot assign to the whole array '%s' (use %s[i] = ...)", n->name, n->name); s = NULL; }
+            Type rt = check_expr(n->a);
+            if (s && rt != T_NONE) {
+                n->type = s->type;
+                if (!assignable(s->type, rt))
+                    err(n->line, "invalid assignment: cannot assign '%s' to '%s' %s '%s'",
+                        type_name(rt), type_name(s->type), n->b ? "array element" : "variable", n->name);
             }
-            if (check_expr(n->a) == T_VOID) err(n->line, "cannot print the result of a void function");
             break;
-        case N_SCAN:      check_scan(n);  break;
-        case N_EXPR_STMT: check_expr(n->a); break;
-        case N_RETURN:    check_return(n); break;
-        case N_FUNC:      check_func(n);  break;
-        case N_BREAK:
-            if (!loop_depth && !switch_depth) err(n->line, "'break' outside a loop or switch");
+        }
+        case N_SCAN:
+            check_scan(n);
             break;
-        case N_CONTINUE:
-            if (!loop_depth) err(n->line, "'continue' outside a loop");
+        case N_PRINT:
+            if (n->a->kind != N_STR) check_expr(n->a);
+            break;
+        case N_CALL:
+            check_call(n, 0);
+            break;
+        case N_RETURN:
+            if (cur_ret == T_VOID) {
+                if (n->a) { check_expr(n->a); err(n->line, "a void function cannot return a value"); }
+            } else if (cur_ret != T_NONE) {
+                if (!n->a) err(n->line, "this function must return a '%s' value", type_name(cur_ret));
+                else {
+                    Type rt = check_expr(n->a);
+                    if (rt != T_NONE && !assignable(cur_ret, rt))
+                        err(n->line, "type mismatch: cannot return '%s' from a function returning '%s'", type_name(rt), type_name(cur_ret));
+                }
+            } else if (n->a) check_expr(n->a);
             break;
         case N_IF:
             check_condition(n->a, "if");
@@ -379,30 +412,37 @@ static void check_stmts(Node *n) {
             check_body(n->c);
             break;
         case N_WHILE:
-            check_condition(n->a, n->c ? "for" : "while");
-            check_loop_body(n->b);
-            if (n->c) check_stmts(n->c);    /* for-step: runs in the for-header scope */
+            check_condition(n->a, "while");
+            loop_depth++;
+            check_body(n->b);
+            loop_depth--;
+            if (n->c) check_stmts(n->c);                    /* for-loop step */
             break;
         case N_DOWHILE:
-            check_loop_body(n->b);
+            loop_depth++;
+            check_body(n->b);
+            loop_depth--;
             check_condition(n->a, "do-while");
+            break;
+        case N_BREAK:
+            if (!loop_depth && !switch_depth) err(n->line, "'break' outside of a loop or switch");
+            break;
+        case N_CONTINUE:
+            if (!loop_depth) err(n->line, "'continue' outside of a loop");
             break;
         case N_SWITCH: {
             Type t = check_expr(n->a);
-            if (t != T_NONE && t != T_INT)
-                err(n->line, "switch expression must be 'int', got '%s'", type_name(t));
+            if (t != T_NONE && t != T_INT) err(n->line, "switch value must be int (or char), got '%s'", type_name(t));
             int defaults = 0;
             switch_depth++;
-            st_enter();
+            st_enter();                                 /* all cases share one scope, like C */
             for (Node *c = n->b; c; c = c->next) {
-                if (!c->a) { if (++defaults > 1) err(c->line, "multiple 'default' labels in one switch"); }
+                if (!c->a) { if (++defaults > 1) err(c->line, "more than one 'default' in a switch"); }
+                else if (c->a->kind != N_INT) { check_expr(c->a); err(c->line, "case label must be an integer or char constant"); }
                 else {
-                    Type ct = check_expr(c->a);
-                    if (c->a->kind != N_INT)
-                        err(c->line, "case label must be an integer constant");
-                    else if (ct != T_INT) err(c->line, "case label must be 'int'");
+                    c->a->type = T_INT;
                     for (Node *d = n->b; d != c; d = d->next)
-                        if (d->a && d->a->kind == N_INT && c->a->kind == N_INT && d->a->ival == c->a->ival)
+                        if (d->a && d->a->kind == N_INT && d->a->ival == c->a->ival)
                             err(c->line, "duplicate case value %d", c->a->ival);
                 }
                 check_stmts(c->b);
@@ -413,10 +453,14 @@ static void check_stmts(Node *n) {
         }
         case N_BLOCK:
             st_enter();
-            block_depth++;
+            nest++;
             check_stmts(n->a);
-            block_depth--;
+            nest--;
             st_exit();
+            break;
+        case N_FUNC:
+            if (nest) err(n->line, "function '%s' cannot be defined inside another block", n->name);
+            else check_func(n);
             break;
         default:
             break;
@@ -424,56 +468,16 @@ static void check_stmts(Node *n) {
     }
 }
 
-static int same_signature(Node *a, Node *b) {
-    if (a->type != b->type) return 0;
-    Node *p = a->a, *q = b->a;
-    for (; p && q; p = p->next, q = q->next)
-        if (p->type != q->type || p->is_array != q->is_array) return 0;
-    return !p && !q;
-}
-
-/* pre-pass: every top-level function is known before any body is checked,
- * so functions may call each other (and themselves) regardless of order */
-static void register_functions(Node *n) {
-    for (; n; n = n->next) {
-        if (n->kind != N_FUNC) continue;
-        Symbol *s = st_lookup_current(n->name);
-        if (s && !s->is_func) { err(n->line, "'%s' redeclared as a function", n->name); continue; }
-        if (s) {
-            if (!same_signature(s->func, n))
-                err(n->line, "conflicting declaration of function '%s' (first declared at line %d)", n->name, s->line);
-            else if (s->func->b && n->b)
-                err(n->line, "redefinition of function '%s' (first defined at line %d)", n->name, s->func->line);
-            else if (n->b) s->func = n;
-            continue;
-        }
-        if (n->b == NULL && is(n->name, "main")) continue;
-        s = st_insert(n->name, n->type, n->line);
-        s->is_func = 1;
-        s->func = n;
-    }
-}
-
-/* a function that is called but only has a prototype */
-static void check_defined(Node *n) {
-    for (; n; n = n->next) {
-        if (n->kind == N_FUNC && !n->b) {
-            Symbol *s = st_lookup(n->name);
-            if (s && s->is_func && s->func == n && s->func->b == NULL)
-                err(n->line, "function '%s' is declared but never defined", n->name);
-        }
-    }
-}
-
 int semantic_check(Node *root) {
-    errors = 0;
-    cur_func = NULL;
-    loop_depth = switch_depth = block_depth = 0;
+    errors = 0; funcs = NULL; loop_depth = 0; switch_depth = 0; nest = 0; cur_ret = T_NONE;
     st_init();
     if (root) {
-        register_functions(root->a);
+        /* pass 1: register every top-level function so calls may come before the definition */
+        for (Node *n = root->a; n; n = n->next) if (n->kind == N_FUNC) register_func(n);
+        for (Func *f = funcs; f; f = f->next)
+            if (!f->defined) err(f->line, "function '%s' is declared but never defined", f->name);
+        /* pass 2: statements and function bodies in source order */
         check_stmts(root->a);
-        check_defined(root->a);
     }
     return errors;
 }

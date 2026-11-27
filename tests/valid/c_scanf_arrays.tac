@@ -1,38 +1,36 @@
-    n = 0
     print "Enter n: "
-    n = read int
-    array arr, 100, int
-    i = 0
+    scan n, d
+    array arr 100
     i = 0
 L1:
-    t1 = i < n
-    ifFalse t1 goto L2
-    t2 = read int
-    arr[i] = t2
-    t3 = i + 1
-    i = t3
+    t2 = i < n
+    ifFalse t2 goto L2
+    scan t3, d
+    arr[i] = t3
+    t4 = i + 1
+    i = t4
     goto L1
 L2:
-    t4 = arr[0]
-    max = t4
+    t5 = arr[0]
+    max = t5
     sum = 0
     i = 0
 L3:
-    t5 = i < n
-    ifFalse t5 goto L4
-    t6 = arr[i]
-    t7 = t6 > max
-    ifFalse t7 goto L5
-    t8 = arr[i]
-    max = t8
-L5:
+    t6 = i < n
+    ifFalse t6 goto L4
+    t7 = arr[i]
+    t8 = t7 > max
+    ifFalse t8 goto L5
     t9 = arr[i]
+    max = t9
+L5:
+    t10 = arr[i]
     param sum
-    param t9
-    t10 = call add, 2
-    sum = t10
-    t11 = i + 1
-    i = t11
+    param t10
+    t11 = call add, 2
+    sum = t11
+    t12 = i + 1
+    i = t12
     goto L3
 L4:
     print "max = "
@@ -40,8 +38,9 @@ L4:
     print ", sum = "
     print sum, "%d"
     print "\n"
+    return 0
     return
-func add, a, b
-    t12 = a + b
-    return t12
+func add(a, b) locals(a, b, t1)
+    t1 = a + b
+    return t1
 endfunc

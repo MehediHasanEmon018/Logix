@@ -68,12 +68,14 @@ Symbol *st_find_inactive(const char *name) {
 }
 
 void st_dump(void) {
-    printf("%-12s %-6s %-6s %s\n", "Name", "Type", "Scope", "Line");
-    printf("------------ ------ ------ ----\n");
+    printf("%-12s %-16s %-6s %s\n", "Name", "Type", "Scope", "Line");
+    printf("------------ ---------------- ------ ----\n");
     for (Symbol *p = all_head; p; p = p->next_all) {
-        char t[32];
-        snprintf(t, sizeof t, "%s%s", p->is_func ? "func " : "", type_name(p->type));
-        if (p->is_array) strcat(t, "[]");
-        printf("%-12s %-6s %-6d %d\n", p->name, t, p->scope, p->line);
+        char ty[96];
+        if (p->is_func)       snprintf(ty, sizeof ty, "%s", p->sig ? p->sig : "func");
+        else if (p->is_array && p->size > 0) snprintf(ty, sizeof ty, "%s[%d]", type_name(p->type), p->size);
+        else if (p->is_array) snprintf(ty, sizeof ty, "%s[]", type_name(p->type));
+        else                  snprintf(ty, sizeof ty, "%s", type_name(p->type));
+        printf("%-12s %-16s %-6d %d\n", p->name, ty, p->scope, p->line);
     }
 }

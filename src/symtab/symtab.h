@@ -10,9 +10,10 @@ typedef struct Symbol {
     int   scope;                 /* 0 = global, 1 = first nested block, ... */
     int   line;                  /* line where it was declared */
     int   active;                /* 0 once its scope has been closed */
-    int   is_array;              /* declared as  T name[...]  (or an array parameter) */
-    int   is_func;               /* a function name (lives in the global scope) */
-    Node *func;                  /* is_func: its N_FUNC node (the definition when there is one) */
+    int   is_array;              /* arrays (and array parameters) */
+    int   size;                  /* array element count (0 for 'int a[]' parameters) */
+    int   is_func;               /* function name */
+    char *sig;                   /* functions: printable signature, e.g. "int(int,float)" */
     struct Symbol *next_in_scope;
     struct Symbol *next_all;     /* every symbol ever declared, in order */
 } Symbol;

@@ -5,6 +5,7 @@
 #  syntax_errors/    must exit 1 and print "Syntax error"
 #  semantic_errors/  skipped until the semantic phase exists
 #                    (then: must exit 1 and print "Semantic error")
+#  run/              program is executed with --run (stdin from X.in if present); stdout must equal X.out
 cd "$(dirname "$0")/.." || exit 2
 BIN=./logix
 pass=0; fail=0; skip=0
@@ -44,6 +45,14 @@ for f in tests/semantic_errors/*.mc; do
     else
         echo "SKIP  $f (semantic phase not implemented; create tests/.semantic_ready to enable)"; skip=$((skip+1))
     fi
+done
+# executed programs: stdout of "./logix X.mc --run" must equal X.out
+for f in tests/run/*.mc; do
+    [ -f "$f" ] || continue
+    exp="${f%.mc}.out"; inp="${f%.mc}.in"
+    if [ -f "$inp" ]; then out=$($BIN "$f" --run < "$inp" 2>&1); else out=$($BIN "$f" --run < /dev/null 2>&1); fi
+    if [ "$out" = "$(cat "$exp")" ]; then echo "PASS  $f"; pass=$((pass+1))
+    else echo "FAIL  $f (output differs from $exp)"; echo "$out" | diff - "$exp" | sed 's/^/      /'; fail=$((fail+1)); fi
 done
 echo; echo "passed=$pass failed=$fail skipped=$skip"
 [ "$fail" -eq 0 ]

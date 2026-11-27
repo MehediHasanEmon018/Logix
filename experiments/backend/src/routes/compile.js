@@ -1,5 +1,4 @@
-// POST /api/compile  { code, input? }  ->  (input = stdin text for scanf)
-//  { ok, output, tac, ast, symtab, errors }
+// POST /api/compile  { code, input? }  ->  { ok, output, tac, ast, symtab, errors }
 // Runs the Logix C compiler (./logix) on the submitted .mc source.
 // Guests may call it; if a valid Bearer token is sent, the user's `runs` counter is incremented.
 const express = require('express');
@@ -28,13 +27,14 @@ function countRun(req) {
   if (s && s.expires_at >= Date.now()) bumpRuns.run(s.user_id);
 }
 
-// input goes to the program's stdin (scanf); stdin is always closed so reading past it gives EOF, not a hang
+// stdin is always closed (after writing `input`, if any): a program that calls scanf() then sees end of
+// input instead of waiting until the 5 s timeout kills it.
 function run(file, flag, input) {
   return new Promise(resolve => {
     const args = flag ? [file, flag] : [file];
     const child = execFile(BIN, args, { timeout: 5000, maxBuffer: 1 << 20 }, (err, stdout, stderr) =>
       resolve({ err, stdout, stderr }));
-    child.stdin.on('error', () => {});
+    child.stdin.on('error', () => {});     // the program may exit before reading its input
     child.stdin.end(input || '');
   });
 }
@@ -46,6 +46,8 @@ router.post('/', async (req, res, next) => {
   const code = req.body && req.body.code;
   if (typeof code !== 'string' || !code.trim()) return next(new HttpError(400, 'Source code is required.'));
   if (code.length > 100000) return next(new HttpError(413, 'Source code too large.'));
+  // optional text fed to scanf() while the program runs (POST body field `input`)
+  const input = typeof req.body.input === 'string' ? req.body.input.slice(0, 10000) : '';
 
   const file = path.join(os.tmpdir(), `logix-${crypto.randomUUID()}.mc`);
   try {
@@ -63,7 +65,7 @@ router.post('/', async (req, res, next) => {
       return res.json({ ok: false, errors: errors.length ? errors : ['Compilation failed.'] });
     }
 
-    const [astRun, symRun, progRun] = await Promise.all([run(file, '--ast'), run(file, '--symtab'), run(file, '--run', typeof req.body.input === 'string' ? req.body.input : '')]);
+    const [astRun, symRun, progRun] = await Promise.all([run(file, '--ast'), run(file, '--symtab'), run(file, '--run', input)]);
     // Program output (like an online C compiler). A runtime error keeps what was printed before it.
     let output = progRun.stdout || '';
     if (progRun.err && progRun.stderr) output += (output && !output.endsWith('\n') ? '\n' : '') + progRun.stderr.trim();

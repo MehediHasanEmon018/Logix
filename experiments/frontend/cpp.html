@@ -86,6 +86,14 @@ button#run:disabled { opacity: .6; cursor: wait; }
 }
 #output.error { color: var(--error); }
 
+/* Program input (stdin) for scanf */
+.stdin-panel { margin-top: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+#stdin {
+  display: block; width: 100%; height: 110px; padding: 16px 22px; margin: 0; border: 0; resize: vertical; outline: none;
+  background: transparent; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 15px; line-height: 26px;
+}
+#stdin::placeholder { color: var(--dim); opacity: 1; }
+
 @media (max-width: 860px) {
   .panels { grid-template-columns: 1fr; }
   .panel { height: 420px; }
@@ -143,6 +151,11 @@ Logix
 <textarea id="output" readonly spellcheck="false" aria-label="Output" placeholder="Output will appear here after you press Run."></textarea>
 </section>
 </div>
+
+<section class="stdin-panel">
+<div class="panel-head"><span>Program input (stdin)</span><span class="filename">for cin / scanf</span></div>
+<textarea id="stdin" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Program input" placeholder="Values for cin / scanf go here, e.g.  3 4 5 6  (separate with spaces or new lines)"></textarea>
+</section>
 </main>
 
 <script src="js/api.js"></script>
@@ -209,7 +222,8 @@ Logix
   Logix.attachCompiler({
     runBtn: document.getElementById("run"),
     code: code,
-    output: document.getElementById("output")
+    output: document.getElementById("output"),
+    input: document.getElementById("stdin")
   });
 })();
 </script>

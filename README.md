@@ -6,8 +6,8 @@ Compiles the fixed mini language from Section 5 of the project manual down to Th
 ## Team
 | Name | ID | GitHub |
 |------|----|--------|
-| Nadia Muntaha | _fill in_ | _fill in_ |
-| Fahima Akter | | |
+| Mehedi Hasan Emon| 232-115-018 |
+| Amit Biswas Sagar | 232-115-040 |
 
 ## Status
 | Phase | Where | State |

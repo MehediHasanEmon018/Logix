@@ -168,9 +168,9 @@
     // Sends Logix mini-language source (.mc) to the server compiler.
     // Resolves to { ok, tac, errors: [string], ast, symtab }.
     // Works for guests too; if a login token is stored it is sent so the server can count the run.
-    // input (optional): text given to the program's stdin, read by scanf.
+    // `input` (optional) is the text the program reads with scanf.
     function compile(code, input) {
-        return request("/compile", { method: "POST", body: { code: String(code), input: input ? String(input) : "" } });
+        return request("/compile", { method: "POST", body: { code: String(code), input: input == null ? "" : String(input) } });
     }
 
     function asLines(v) {
@@ -179,8 +179,7 @@
     }
 
     // Wires an editor page to the compiler.
-    // opts: { runBtn, code (textarea), output (textarea), input (optional textarea: stdin for scanf),
-    //         view (optional <select> with output|tac|ast|symtab) }
+    // opts: { runBtn, code (textarea), output (textarea), input (optional stdin textarea), view (optional <select> with output|tac|ast|symtab) }
     function attachCompiler(opts) {
         var last = null;
 

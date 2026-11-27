@@ -1,10 +1,9 @@
 /* Logix TAC interpreter
  *   - pre-parses the TAC text into instructions (variables become slots, labels become indexes)
- *   - executes them; `print` writes the program output to stdout, `read` takes input from stdin
- *   - functions: a call saves the callee's local slots, so recursion works; arrays are
- *     heap objects passed by reference (like C)
- * Runtime errors: division/modulo by zero, array index out of bounds, too deep recursion,
- *                 runaway loops (step limit). */
+ *   - executes them; `print` writes the program output to stdout
+ * Also: arrays (array / a[i] = x / t = a[i]), functions (func / param / call / return / endfunc,
+ * with per-call saving of the callee's locals so recursion works) and scanf (scan).
+ * Runtime errors: division/modulo by zero, array index out of range, runaway loops / recursion. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,53 +12,67 @@
 #include <math.h>
 #include "interp/interp.h"
 
-typedef enum { V_INT, V_FLT, V_BOOL, V_ARR } VK;
-struct Arr;
-typedef struct { VK k; long long i; double f; struct Arr *a; } Val;
-typedef struct Arr { long long n; VK elem; Val *v; } Arr;
+typedef enum { V_INT, V_FLT, V_BOOL } VK;
+typedef struct { VK k; long long i; double f; } Val;
 
 typedef enum { O_NONE, O_VAR, O_CONST, O_STR } OK;
 typedef struct { OK k; int slot; Val v; char *s; } Opd;
 
 typedef enum { I_ASSIGN, I_CAST, I_BIN, I_NOT, I_NEG, I_IFFALSE, I_GOTO, I_LABEL, I_PRINT, I_RETURN,
-               I_ARRAY, I_LOAD, I_STORE, I_READ, I_PARAM, I_CALL, I_FUNC, I_ENDFUNC } IK;
+               I_ARRAY, I_LOAD, I_STORE, I_PARAM, I_PARAMARR, I_CALL, I_SCAN, I_FUNC, I_ENDFUNC, I_LEN } IK;
 typedef struct { IK k; int dst; Opd a, b; char op[3]; int label; char *spec; int line;
-                 VK elem; char *fname; int func; int nargs; } Ins;
+                 int arr;        /* array slot (array ops, paramarr) */
+                 int aux;        /* I_ARRAY: size; I_CALL: argument count; I_SCAN: format letter */
+                 int fn;         /* I_CALL: resolved function index (-1 = not yet) */
+                 char *fname;    /* I_CALL */
+                 char kind;      /* I_ARRAY: 'i' / 'f' / 'b' element kind */
+               } Ins;
 
-typedef struct { char *name; int start, end; int nparams; int *params; int *locals; int nlocals; } Func;
-typedef struct { int ret_pc; int dst; int func; Val *saved; char *saved_set; } Frame;
+/* arrays: a slot holds a heap block; 'owned' = allocated by an 'array' instruction in this activation
+ * (array parameters just alias the caller's block) */
+typedef struct { Val *d; int n; int owned; } Arr;
 
-#define MAX_STEPS 200000000L
-#define MAX_DEPTH 100000
+typedef struct { char *name; int entry, np, nl, nla; int *pslot, *pisarr, *lslot, *larr; } Fn;
+typedef struct { int ret_pc, dst, fn; Val *sv; char *ss; Arr *sa; } Frame;
+typedef struct { Val v; int isarr; Arr arr; } PArg;
+
+#define MAX_STEPS 20000000L
+#define MAX_DEPTH 20000
+#define MAX_PARGS 64
+
+static char **arr_names; static int narrs, caparrs;
+static Arr  *arrs;
+static Fn   *fns; static int nfns;
+static Frame *frames; static int nframes, capframes;
+static PArg  pargs[MAX_PARGS]; static int npend;
+static int   cur_fn_def = -1;       /* function whose header was parsed last (parse time only) */
 
 static Ins  *code; static int ncode, capcode;
-static char **names; static int *owner; static int nnames, capnames;
+static char **names; static int nnames, capnames;
 static int  *label_pc; static int nlabels;
 static Val  *vars; static char *isset;
-static Func *funcs; static int nfuncs, capfuncs;
-static int   parse_func = -1;           /* function whose body is being parsed */
 
 static void *xrealloc(void *p, size_t n) {
-    p = realloc(p, n ? n : 1);
+    p = realloc(p, n);
     if (!p) { fprintf(stderr, "out of memory\n"); exit(2); }
     return p;
 }
 
 static int slot_of(const char *name) {
     for (int i = 0; i < nnames; i++) if (strcmp(names[i], name) == 0) return i;
-    if (nnames == capnames) {
-        capnames = capnames ? capnames * 2 : 64;
-        names = xrealloc(names, capnames * sizeof *names);
-        owner = xrealloc(owner, capnames * sizeof *owner);
-    }
+    if (nnames == capnames) { capnames = capnames ? capnames * 2 : 64; names = xrealloc(names, capnames * sizeof *names); }
     names[nnames] = strdup(name);
-    owner[nnames] = parse_func;          /* first seen inside a function body -> its local */
     return nnames++;
 }
 
-static Val mk_int(long long i) { Val v; memset(&v, 0, sizeof v); v.k = V_INT; v.i = i; return v; }
-static Val mk_flt(double f)    { Val v; memset(&v, 0, sizeof v); v.k = V_FLT; v.f = f; return v; }
-static Val mk_bool(int b)      { Val v = mk_int(b != 0); v.k = V_BOOL; return v; }
+static int arr_slot_of(const char *name) {
+    for (int i = 0; i < narrs; i++) if (strcmp(arr_names[i], name) == 0) return i;
+    if (narrs == caparrs) { caparrs = caparrs ? caparrs * 2 : 16; arr_names = xrealloc(arr_names, caparrs * sizeof *arr_names); }
+    arr_names[narrs] = strdup(name);
+    return narrs++;
+}
+
+static Val mk_int(long long i) { Val v; v.k = V_INT; v.i = i; v.f = 0; return v; }
 
 /* parse one operand starting at *p; advances *p past it */
 static Opd parse_opd(char **p) {
@@ -74,14 +87,14 @@ static Opd parse_opd(char **p) {
         return o;
     }
     char *e = s;
-    while (*e && *e != ' ' && *e != ',' && *e != '[' && *e != ']') e++;
+    while (*e && *e != ' ' && *e != ',') e++;
     char save = *e; *e = 0;
     if (strcmp(s, "true") == 0 || strcmp(s, "false") == 0) {
-        o.k = O_CONST; o.v = mk_bool(s[0] == 't');
+        o.k = O_CONST; o.v.k = V_BOOL; o.v.i = (s[0] == 't');
     } else if (isdigit((unsigned char)s[0]) || (s[0] == '-' && (isdigit((unsigned char)s[1]) || s[1] == '.'))) {
         o.k = O_CONST;
-        if (strpbrk(s, ".eEn")) o.v = mk_flt(atof(s));
-        else o.v = mk_int(atoll(s));
+        if (strpbrk(s, ".eEn")) { o.v.k = V_FLT; o.v.f = atof(s); }
+        else { o.v.k = V_INT; o.v.i = atoll(s); }
     } else {
         o.k = O_VAR; o.slot = slot_of(s);
     }
@@ -94,7 +107,7 @@ static Ins *new_ins(IK k, int line) {
     if (ncode == capcode) { capcode = capcode ? capcode * 2 : 256; code = xrealloc(code, capcode * sizeof *code); }
     Ins *in = &code[ncode++];
     memset(in, 0, sizeof *in);
-    in->k = k; in->line = line; in->dst = -1; in->func = -1;
+    in->k = k; in->line = line;
     return in;
 }
 
@@ -109,21 +122,66 @@ static void set_label(int n, int pc) {
 
 static int parse_label_ref(const char *s) { while (*s == ' ') s++; return (*s == 'L') ? atoi(s + 1) : -1; }
 
-static VK kind_of(const char *s) {
-    while (*s == ' ' || *s == ',') s++;
-    if (strncmp(s, "float", 5) == 0) return V_FLT;
-    if (strncmp(s, "bool", 4) == 0)  return V_BOOL;
-    return V_INT;
+/* keyword at the start of a TAC line (and not just a variable that happens to be named like it) */
+static int kw(const char *s, const char *k) {
+    size_t n = strlen(k);
+    return strncmp(s, k, n) == 0 && s[n] == ' ' && s[n + 1] != '=';
 }
 
-/* "f, 2" -> name + count */
-static void parse_call(Ins *in, char *p) {
-    while (*p == ' ') p++;
-    char *e = p;
-    while (*e && *e != ',' && *e != ' ') e++;
-    in->fname = strndup(p, (size_t)(e - p));
-    while (*e == ',' || *e == ' ') e++;
-    in->nargs = atoi(e);
+/* next word of a "a, b, c" style line: skips blanks and commas, ends at the next blank/comma */
+static char *trim_word(char **p) {
+    char *s = *p;
+    while (*s == ' ' || *s == ',') s++;
+    char *e = s;
+    while (*e && *e != ' ' && *e != ',') e++;
+    if (*e) *e++ = 0;
+    *p = e;
+    return s;
+}
+
+/* func name(p1, p2[]) locals(a, b[], t1) */
+static int parse_func_header(char *s, int line) {
+    char *lp = strchr(s, '(');
+    if (!lp) return 0;
+    *lp = 0;
+    Ins *in = new_ins(I_FUNC, line); (void)in;
+    fns = xrealloc(fns, (size_t)(nfns + 1) * sizeof *fns);
+    Fn *f = &fns[nfns]; memset(f, 0, sizeof *f);
+    f->name = strdup(s); f->entry = ncode;               /* first instruction after the header */
+    char *p = lp + 1;
+    char *rp = strchr(p, ')');
+    if (!rp) return 0;
+    *rp = 0;
+    char *loc = strstr(rp + 1, "locals(");
+    f->pslot = xrealloc(NULL, 64 * sizeof(int)); f->pisarr = xrealloc(NULL, 64 * sizeof(int));
+    while (*p) {
+        char *w = trim_word(&p);
+        if (!*w) break;
+        size_t l = strlen(w);
+        int isarr = l > 2 && w[l - 2] == '[' && w[l - 1] == ']';
+        if (isarr) w[l - 2] = 0;
+        if (f->np >= 64) return 0;
+        f->pisarr[f->np] = isarr;
+        f->pslot[f->np] = isarr ? arr_slot_of(w) : slot_of(w);
+        f->np++;
+    }
+    f->lslot = xrealloc(NULL, 4096 * sizeof(int)); f->larr = xrealloc(NULL, 1024 * sizeof(int));
+    if (loc) {
+        p = loc + 7;
+        char *e = strrchr(p, ')');
+        if (e) *e = 0;
+        while (*p) {
+            char *w = trim_word(&p);
+            if (!*w) break;
+            size_t l = strlen(w);
+            int isarr = l > 2 && w[l - 2] == '[' && w[l - 1] == ']';
+            if (isarr) { w[l - 2] = 0; if (f->nla < 1024) f->larr[f->nla++] = arr_slot_of(w); }
+            else if (f->nl < 4096) f->lslot[f->nl++] = slot_of(w);
+        }
+    }
+    nfns++;
+    cur_fn_def = nfns - 1;
+    return 1;
 }
 
 static int parse_line(char *s, int line) {
@@ -136,38 +194,6 @@ static int parse_line(char *s, int line) {
         Ins *in = new_ins(I_LABEL, line);
         in->label = atoi(s + 1);
         set_label(in->label, ncode - 1);
-        return 1;
-    }
-    if (strncmp(s, "func ", 5) == 0) {                     /* func f, p1, p2 */
-        if (nfuncs == capfuncs) { capfuncs = capfuncs ? capfuncs * 2 : 16; funcs = xrealloc(funcs, capfuncs * sizeof *funcs); }
-        Func *f = &funcs[nfuncs];
-        memset(f, 0, sizeof *f);
-        Ins *in = new_ins(I_FUNC, line);
-        in->func = nfuncs;
-        f->start = ncode - 1;
-        parse_func = nfuncs++;
-        char *p = s + 5;
-        while (*p == ' ') p++;
-        char *e = p;
-        while (*e && *e != ',' && *e != ' ') e++;
-        f->name = strndup(p, (size_t)(e - p));
-        p = e;
-        while (*p) {
-            while (*p == ',' || *p == ' ') p++;
-            if (!*p) break;
-            Opd o = parse_opd(&p);
-            if (o.k != O_VAR) return 0;
-            f->params = xrealloc(f->params, (size_t)(f->nparams + 1) * sizeof *f->params);
-            f->params[f->nparams++] = o.slot;
-        }
-        return 1;
-    }
-    if (strcmp(s, "endfunc") == 0) {
-        if (parse_func < 0) return 0;
-        Ins *in = new_ins(I_ENDFUNC, line);
-        in->func = parse_func;
-        funcs[parse_func].end = ncode - 1;
-        parse_func = -1;
         return 1;
     }
     if (strncmp(s, "goto ", 5) == 0) { Ins *in = new_ins(I_GOTO, line); in->label = parse_label_ref(s + 5); return 1; }
@@ -186,59 +212,87 @@ static int parse_line(char *s, int line) {
         if (*p == ',') { p++; Opd sp = parse_opd(&p); in->spec = sp.s; }
         return 1;
     }
-    if (strncmp(s, "param ", 6) == 0) { char *p = s + 6; Ins *in = new_ins(I_PARAM, line); in->a = parse_opd(&p); return 1; }
-    if (strncmp(s, "call ", 5) == 0)  { Ins *in = new_ins(I_CALL, line); parse_call(in, s + 5); return 1; }
-    if (strncmp(s, "array ", 6) == 0) {                     /* array a, size, type */
-        char *p = s + 6; Ins *in = new_ins(I_ARRAY, line);
-        Opd a = parse_opd(&p);
-        if (a.k != O_VAR) return 0;
-        in->dst = a.slot;
-        while (*p == ',' || *p == ' ') p++;
-        in->a = parse_opd(&p);
-        in->elem = kind_of(p);
-        return 1;
-    }
     if (strcmp(s, "return") == 0 || strncmp(s, "return ", 7) == 0) {
         Ins *in = new_ins(I_RETURN, line);
         if (s[6]) { char *p = s + 7; in->a = parse_opd(&p); }
         return 1;
     }
-    /* dst = ...   or   a[i] = v */
+    if (strcmp(s, "endfunc") == 0) { new_ins(I_ENDFUNC, line); return 1; }
+    if (kw(s, "func")) return parse_func_header(s + 5, line);
+    if (kw(s, "param"))    { char *p = s + 6; Ins *in = new_ins(I_PARAM, line); in->a = parse_opd(&p); return 1; }
+    if (kw(s, "paramarr")) { char *p = s + 9; Ins *in = new_ins(I_PARAMARR, line); in->arr = arr_slot_of(trim_word(&p)); return 1; }
+    if (kw(s, "array")) {                                   /* array NAME SIZE [float|bool] */
+        char *p = s + 6; Ins *in = new_ins(I_ARRAY, line);
+        in->arr = arr_slot_of(trim_word(&p));
+        in->aux = atoi(trim_word(&p));
+        char *k = trim_word(&p);
+        in->kind = *k == 'f' ? 'f' : *k == 'b' ? 'b' : 'i';
+        return 1;
+    }
+    if (kw(s, "scan")) {                                    /* scan DST, d|f|c|C */
+        char *p = s + 5; Ins *in = new_ins(I_SCAN, line);
+        in->dst = slot_of(trim_word(&p));
+        char *k = trim_word(&p);
+        in->aux = *k;
+        return 1;
+    }
+    if (kw(s, "call")) {                                    /* call NAME, N   (result discarded) */
+        char *p = s + 5; Ins *in = new_ins(I_CALL, line);
+        in->fname = strdup(trim_word(&p)); in->aux = atoi(trim_word(&p)); in->fn = -1; in->dst = -1;
+        return 1;
+    }
+
+    /* dst = ... */
     char *eq = strstr(s, " = ");
     if (!eq) return 0;
     *eq = 0;
     char *p = eq + 3;
     while (*p == ' ') p++;
-    char *br = strchr(s, '[');
-    if (br) {                                              /* a[i] = v */
-        Ins *in = new_ins(I_STORE, line);
-        *br = 0;
-        in->dst = slot_of(s);
-        char *ip = br + 1;
-        in->b = parse_opd(&ip);
-        in->a = parse_opd(&p);
-        return 1;
+    Ins *in;
+    {   /* a[idx] = value */
+        char *lb = strchr(s, '[');
+        if (lb) {
+            char *rb = strrchr(s, ']');
+            if (!rb || rb < lb) return 0;
+            *rb = 0; *lb = 0;
+            in = new_ins(I_STORE, line);
+            in->arr = arr_slot_of(s);
+            char *ip = lb + 1; in->a = parse_opd(&ip);
+            in->b = parse_opd(&p);
+            return 1;
+        }
     }
     int dst = slot_of(s);
-    Ins *in;
-    if (strncmp(p, "(float) ", 8) == 0) { in = new_ins(I_CAST, line); p += 8; in->a = parse_opd(&p); }
-    else if (strncmp(p, "(int) ", 6) == 0) { in = new_ins(I_CAST, line); p += 6; in->a = parse_opd(&p); in->elem = V_INT; }
-    else if (strncmp(p, "! ", 2) == 0)  { in = new_ins(I_NOT, line);  p += 2; in->a = parse_opd(&p); }
-    else if (strncmp(p, "- ", 2) == 0)  { in = new_ins(I_NEG, line);  p += 2; in->a = parse_opd(&p); }
-    else if (strncmp(p, "call ", 5) == 0) { in = new_ins(I_CALL, line); parse_call(in, p + 5); }
-    else if (strncmp(p, "read ", 5) == 0) {
-        in = new_ins(I_READ, line);
-        in->elem = kind_of(p + 5);
-        in->op[0] = (strncmp(p + 5, "char", 4) == 0) ? 'c' : 0;
+    if (kw(p, "call")) {                                    /* t = call NAME, N */
+        char *q = p + 5; in = new_ins(I_CALL, line);
+        in->fname = strdup(trim_word(&q)); in->aux = atoi(trim_word(&q)); in->fn = -1; in->dst = dst;
+        return 1;
     }
-    else {
-        Opd a = parse_opd(&p);
-        if (*p == '[') {                                   /* t = a[i] */
-            p++;
-            in = new_ins(I_LOAD, line); in->a = a; in->b = parse_opd(&p);
+    {   /* t = a[idx] */
+        char *lb = strchr(p, '['), *sp = strchr(p, ' ');
+        if (lb && (!sp || lb < sp)) {
+            char *rb = strchr(lb, ']');
+            if (!rb) return 0;
+            *rb = 0; *lb = 0;
+            in = new_ins(I_LOAD, line);
+            in->arr = arr_slot_of(p);
+            char *ip = lb + 1; in->a = parse_opd(&ip);
             in->dst = dst;
             return 1;
         }
+    }
+    if (strncmp(p, "len ", 4) == 0) {                      /* t = len a   (Java arr.length) */
+        char *q = p + 4;
+        in = new_ins(I_LEN, line); in->arr = arr_slot_of(trim_word(&q));
+        in->dst = dst;
+        return 1;
+    }
+    if (strncmp(p, "(int) ", 6) == 0) { in = new_ins(I_CAST, line); p += 6; in->a = parse_opd(&p); in->aux = 'i'; }
+    else if (strncmp(p, "(float) ", 8) == 0) { in = new_ins(I_CAST, line); p += 8; in->a = parse_opd(&p); }
+    else if (strncmp(p, "! ", 2) == 0)  { in = new_ins(I_NOT, line);  p += 2; in->a = parse_opd(&p); }
+    else if (strncmp(p, "- ", 2) == 0)  { in = new_ins(I_NEG, line);  p += 2; in->a = parse_opd(&p); }
+    else {
+        Opd a = parse_opd(&p);
         while (*p == ' ') p++;
         if (!*p) { in = new_ins(I_ASSIGN, line); in->a = a; }
         else {
@@ -267,8 +321,6 @@ static Val eval(const Opd *o) {
     return mk_int(0);
 }
 
-static void set_var(int slot, Val v) { vars[slot] = v; isset[slot] = 1; }
-
 static void put_string(const char *s) {
     for (; *s; s++) {
         if (*s == '\\' && s[1]) {
@@ -284,7 +336,33 @@ static void put_string(const char *s) {
     }
 }
 
+/* Java's Double.toString: 3.5, 10.0, 0.3333333333333333, 1.0E7 */
+static void print_java_double(double d) {
+    if (isnan(d)) { fputs("NaN", stdout); return; }
+    if (isinf(d)) { fputs(d < 0 ? "-Infinity" : "Infinity", stdout); return; }
+    char buf[64];
+    double ad = fabs(d);
+    if (d == 0 || (ad >= 1e-3 && ad < 1e7)) {
+        for (int k = 1; k <= 17; k++) {
+            snprintf(buf, sizeof buf, "%.*f", k, d);
+            if (strtod(buf, NULL) == d) break;
+        }
+        fputs(buf, stdout);
+        return;
+    }
+    int p;
+    for (p = 0; p <= 17; p++) { snprintf(buf, sizeof buf, "%.*e", p, d); if (strtod(buf, NULL) == d) break; }
+    char *e = strchr(buf, 'e');
+    int ex = atoi(e + 1);
+    *e = 0;
+    printf("%s%sE%d", buf, strchr(buf, '.') ? "" : ".0", ex);
+}
+
 static void print_val(Val v, const char *spec) {
+    if (spec && strcmp(spec, "%J") == 0) {          /* Java println of a double */
+        if (v.k == V_FLT) print_java_double(v.f); else printf("%lld", v.i);
+        return;
+    }
     if (!spec) {
         if (v.k == V_FLT) printf("%g", v.f);
         else if (v.k == V_BOOL) fputs(v.i ? "true" : "false", stdout);
@@ -307,42 +385,29 @@ static void print_val(Val v, const char *spec) {
     }
 }
 
+/* sqrt pow fabs floor ceil (float); abs max min (int when every argument is int) */
+static int call_builtin(const char *f, PArg *args, int n, Val *res) {
+    double x = n > 0 ? as_f(args[0].v) : 0, y = n > 1 ? as_f(args[1].v) : 0;
+    int all_int = 1;
+    for (int i = 0; i < n; i++) if (args[i].v.k == V_FLT) all_int = 0;
+    Val r = mk_int(0);
+    if (!strcmp(f, "sqrt") || !strcmp(f, "pow") || !strcmp(f, "fabs") || !strcmp(f, "floor") || !strcmp(f, "ceil")) {
+        double z = !strcmp(f, "sqrt") ? sqrt(x) : !strcmp(f, "pow") ? pow(x, y) : !strcmp(f, "fabs") ? fabs(x)
+                 : !strcmp(f, "floor") ? floor(x) : ceil(x);
+        r.k = V_FLT; r.f = z;
+    } else if (!strcmp(f, "abs") || !strcmp(f, "max") || !strcmp(f, "min")) {
+        double z = !strcmp(f, "abs") ? fabs(x) : !strcmp(f, "max") ? (x > y ? x : y) : (x < y ? x : y);
+        if (all_int) r = wrap32((long long)z); else { r.k = V_FLT; r.f = z; }
+    } else return 0;
+    *res = r;
+    return 1;
+}
+
 static int rt_error(const Ins *in, const char *msg) {
     fflush(stdout);
     fprintf(stderr, "Runtime error: %s\n", msg);
     (void)in;
     return 1;
-}
-
-static Val convert_to(Val v, VK k) {
-    if (k == V_FLT && v.k != V_FLT) return mk_flt(as_f(v));
-    if (k == V_INT && v.k == V_FLT) return wrap32((long long)v.f);
-    return v;
-}
-
-static Val *pstack; static int ptop, pcap;
-static Frame *frames; static int depth, fcap;
-
-static int do_return(int *pc, Val v) {
-    Frame *fr = &frames[--depth];
-    Func *f = &funcs[fr->func];
-    for (int k = 0; k < f->nlocals; k++) { vars[f->locals[k]] = fr->saved[k]; isset[f->locals[k]] = fr->saved_set[k]; }
-    free(fr->saved); free(fr->saved_set);
-    *pc = fr->ret_pc;
-    if (fr->dst >= 0) set_var(fr->dst, v);
-    return 0;
-}
-
-static int call_builtin(Ins *in, Val *args, Val *res) {
-    const char *f = in->fname;
-    double x = in->nargs > 0 ? as_f(args[0]) : 0, y = in->nargs > 1 ? as_f(args[1]) : 0;
-    if (!strcmp(f, "sqrt"))  { *res = mk_flt(sqrt(x)); return 1; }
-    if (!strcmp(f, "pow"))   { *res = mk_flt(pow(x, y)); return 1; }
-    if (!strcmp(f, "fabs"))  { *res = mk_flt(fabs(x)); return 1; }
-    if (!strcmp(f, "floor")) { *res = mk_flt(floor(x)); return 1; }
-    if (!strcmp(f, "ceil"))  { *res = mk_flt(ceil(x)); return 1; }
-    if (!strcmp(f, "abs"))   { long long v = as_i(args[0]); *res = wrap32(v < 0 ? -v : v); return 1; }
-    return 0;
 }
 
 static int execute(void) {
@@ -368,106 +433,112 @@ static int execute(void) {
                 if (!in->spec) putchar('\n');      /* plain `print x;` is one line; printf has its own \n */
             }
             break;
-        case I_FUNC:                               /* reached by falling through: skip the body */
-            pc = funcs[in->func].end;
-            break;
-        case I_ENDFUNC:                            /* fell off the end of a function */
-            if (!depth) break;
-            do_return(&pc, mk_int(0));
-            break;
+        case I_FUNC: fflush(stdout); return 0;               /* ran into a function body: main is over */
         case I_RETURN:
-            if (!depth) { fflush(stdout); return 0; }          /* return from main: program ends */
-            do_return(&pc, in->a.k == O_NONE ? mk_int(0) : eval(&in->a));
+        case I_ENDFUNC: {
+            Val rv = (in->k == I_RETURN && in->a.k != O_NONE) ? eval(&in->a) : mk_int(0);
+            if (nframes == 0) { fflush(stdout); return 0; }    /* return from main */
+            Frame fr = frames[--nframes];
+            Fn *f = &fns[fr.fn];
+            for (int i = 0; i < f->nla; i++) if (arrs[f->larr[i]].owned) free(arrs[f->larr[i]].d);
+            for (int i = 0; i < f->nl; i++)  { vars[f->lslot[i]] = fr.sv[i]; isset[f->lslot[i]] = fr.ss[i]; }
+            for (int i = 0; i < f->nla; i++) arrs[f->larr[i]] = fr.sa[i];
+            free(fr.sv); free(fr.ss); free(fr.sa);
+            if (fr.dst >= 0) { vars[fr.dst] = rv; isset[fr.dst] = 1; }
+            pc = fr.ret_pc;
             break;
+        }
         case I_PARAM:
-            if (ptop == pcap) { pcap = pcap ? pcap * 2 : 64; pstack = xrealloc(pstack, pcap * sizeof *pstack); }
-            pstack[ptop++] = eval(&in->a);
+            if (npend >= MAX_PARGS) return rt_error(in, "too many arguments");
+            pargs[npend].isarr = 0; pargs[npend].v = eval(&in->a); npend++;
+            break;
+        case I_PARAMARR:
+            if (npend >= MAX_PARGS) return rt_error(in, "too many arguments");
+            pargs[npend].isarr = 1; pargs[npend].arr = arrs[in->arr]; npend++;
             break;
         case I_CALL: {
-            if (in->nargs > ptop) return rt_error(in, "bad call (missing parameters)");
-            Val *args = pstack + (ptop - in->nargs);
-            ptop -= in->nargs;
-            if (in->func < 0) {                    /* built-in */
-                Val r;
-                if (!call_builtin(in, args, &r)) {
-                    char msg[160]; snprintf(msg, sizeof msg, "unknown function '%s'", in->fname);
-                    return rt_error(in, msg);
+            if (in->fn < 0) {
+                for (int i = 0; i < nfns; i++) if (strcmp(fns[i].name, in->fname) == 0) in->fn = i;
+                if (in->fn < 0) {                              /* built-in math function? */
+                    Val r;
+                    if (!call_builtin(in->fname, pargs, npend, &r)) { npend = 0; return rt_error(in, "call to an undefined function"); }
+                    npend = 0;
+                    if (in->dst >= 0) { vars[in->dst] = r; isset[in->dst] = 1; }
+                    break;
                 }
-                if (in->dst >= 0) set_var(in->dst, r);
-                break;
             }
-            Func *f = &funcs[in->func];
-            if (depth >= MAX_DEPTH) return rt_error(in, "stack overflow (recursion too deep)");
-            if (depth == fcap) { fcap = fcap ? fcap * 2 : 64; frames = xrealloc(frames, fcap * sizeof *frames); }
-            Val argv[64]; int na = in->nargs < 64 ? in->nargs : 64;
-            memcpy(argv, args, (size_t)na * sizeof *argv);
-            Frame *fr = &frames[depth++];
-            fr->ret_pc = pc; fr->dst = in->dst; fr->func = in->func;
-            fr->saved = xrealloc(NULL, (size_t)f->nlocals * sizeof *fr->saved);
-            fr->saved_set = xrealloc(NULL, (size_t)f->nlocals);
-            for (int k = 0; k < f->nlocals; k++) {
-                fr->saved[k] = vars[f->locals[k]]; fr->saved_set[k] = isset[f->locals[k]];
-                isset[f->locals[k]] = 0;
+            Fn *f = &fns[in->fn];
+            if (npend != f->np) { npend = 0; return rt_error(in, "wrong number of arguments in call"); }
+            if (nframes >= MAX_DEPTH) return rt_error(in, "stack overflow (infinite recursion?)");
+            if (nframes == capframes) { capframes = capframes ? capframes * 2 : 64; frames = xrealloc(frames, capframes * sizeof *frames); }
+            Frame *fr = &frames[nframes++];
+            fr->ret_pc = pc; fr->dst = in->dst; fr->fn = in->fn;
+            fr->sv = xrealloc(NULL, (f->nl ? f->nl : 1) * sizeof(Val));
+            fr->ss = xrealloc(NULL, f->nl ? f->nl : 1);
+            fr->sa = xrealloc(NULL, (f->nla ? f->nla : 1) * sizeof(Arr));
+            for (int i = 0; i < f->nl; i++)  { fr->sv[i] = vars[f->lslot[i]]; fr->ss[i] = isset[f->lslot[i]]; isset[f->lslot[i]] = 0; }
+            for (int i = 0; i < f->nla; i++) { fr->sa[i] = arrs[f->larr[i]]; memset(&arrs[f->larr[i]], 0, sizeof(Arr)); }
+            for (int i = 0; i < f->np; i++) {
+                if (f->pisarr[i]) { arrs[f->pslot[i]] = pargs[i].arr; arrs[f->pslot[i]].owned = 0; }
+                else { vars[f->pslot[i]] = pargs[i].v; isset[f->pslot[i]] = 1; }
             }
-            for (int k = 0; k < f->nparams && k < na; k++) set_var(f->params[k], argv[k]);
-            pc = f->start;                         /* loop's pc++ enters the body */
+            npend = 0;
+            pc = f->entry - 1;                                 /* loop increment lands on the entry */
             break;
         }
         case I_ARRAY: {
-            long long n = as_i(eval(&in->a));
-            if (n <= 0 || n > 50000000) return rt_error(in, "invalid array size");
-            Arr *a = malloc(sizeof *a);
-            if (!a) return rt_error(in, "out of memory");
-            a->n = n; a->elem = in->elem;
-            a->v = calloc((size_t)n, sizeof *a->v);
-            if (!a->v) return rt_error(in, "out of memory");
-            Val z = in->elem == V_FLT ? mk_flt(0) : in->elem == V_BOOL ? mk_bool(0) : mk_int(0);
-            for (long long k = 0; k < n; k++) a->v[k] = z;
-            Val v; memset(&v, 0, sizeof v); v.k = V_ARR; v.a = a;
-            set_var(in->dst, v);
+            Arr *A = &arrs[in->arr];
+            if (in->aux <= 0 || in->aux > 10000000) return rt_error(in, "bad array size");
+            if (A->owned) free(A->d);
+            A->d = calloc((size_t)in->aux, sizeof(Val));
+            if (!A->d) return rt_error(in, "out of memory");
+            A->n = in->aux; A->owned = 1;
+            for (int i = 0; i < A->n; i++) {
+                if (in->kind == 'f') { A->d[i].k = V_FLT; A->d[i].f = 0; }
+                else if (in->kind == 'b') A->d[i].k = V_BOOL;
+            }
             break;
         }
         case I_LOAD: case I_STORE: {
-            int slot = in->k == I_LOAD ? in->a.slot : in->dst;
-            Val av = isset[slot] ? vars[slot] : mk_int(0);
-            if (av.k != V_ARR) return rt_error(in, "array used before it was created");
-            long long idx = as_i(eval(&in->b));
-            if (idx < 0 || idx >= av.a->n) {
+            Arr *A = &arrs[in->arr];
+            long long ix = as_i(eval(&in->a));
+            if (!A->d || ix < 0 || ix >= A->n) {
                 char msg[160];
-                snprintf(msg, sizeof msg, "array index %lld out of bounds (size %lld)", idx, av.a->n);
+                snprintf(msg, sizeof msg, "array index out of range: %s[%lld] (size %d)", arr_names[in->arr], ix, A->d ? A->n : 0);
                 return rt_error(in, msg);
             }
-            if (in->k == I_LOAD) set_var(in->dst, av.a->v[idx]);
-            else av.a->v[idx] = convert_to(eval(&in->a), av.a->elem);
+            if (in->k == I_LOAD) { vars[in->dst] = A->d[ix]; isset[in->dst] = 1; }
+            else A->d[ix] = eval(&in->b);
             break;
         }
-        case I_READ: {
+        case I_SCAN: {
             fflush(stdout);
-            Val r;
-            if (in->op[0] == 'c') { char c = 0; r = mk_int(scanf(" %c", &c) == 1 ? (unsigned char)c : 0); }
-            else if (in->elem == V_FLT) { double d = 0; if (scanf("%lf", &d) != 1) d = 0; r = mk_flt(d); }
-            else { long long x = 0; if (scanf("%lld", &x) != 1) x = 0; r = wrap32(x); }
-            set_var(in->dst, r);
+            Val r = mk_int(0); int ok = 0;
+            if (in->aux == 'f') { double x; if (scanf("%lf", &x) == 1) { r.k = V_FLT; r.f = x; ok = 1; } }
+            else if (in->aux == 'c') { int ch = getchar(); if (ch != EOF) { r = mk_int(ch); ok = 1; } }
+            else if (in->aux == 'C') { int ch; while ((ch = getchar()) == ' ' || ch == '\n' || ch == '\t' || ch == '\r') {}
+                                       if (ch != EOF) { r = mk_int(ch); ok = 1; } }
+            else { long long x; if (scanf("%lld", &x) == 1) { r = wrap32(x); ok = 1; } }
+            if (ok) { vars[in->dst] = r; isset[in->dst] = 1; }   /* on end of input the variable keeps its old value */
             break;
         }
-        case I_ASSIGN: set_var(in->dst, eval(&in->a)); break;
-        case I_CAST:
-            if (in->elem == V_INT) set_var(in->dst, wrap32((long long)as_f(eval(&in->a))));
-            else set_var(in->dst, mk_flt(as_f(eval(&in->a))));
-            break;
-        case I_NOT: set_var(in->dst, mk_bool(!truthy(eval(&in->a)))); break;
+        case I_ASSIGN: vars[in->dst] = eval(&in->a); isset[in->dst] = 1; break;
+        case I_LEN: { Val r = mk_int(arrs[in->arr].n); vars[in->dst] = r; isset[in->dst] = 1; break; }
+        case I_CAST: if (in->aux == 'i') { Val a = eval(&in->a); vars[in->dst] = wrap32(as_i(a)); isset[in->dst] = 1; break; }
+        { Val a = eval(&in->a); Val r; r.k = V_FLT; r.f = as_f(a); r.i = 0; vars[in->dst] = r; isset[in->dst] = 1; break; }
+        case I_NOT: { Val r = mk_int(!truthy(eval(&in->a))); r.k = V_BOOL; vars[in->dst] = r; isset[in->dst] = 1; break; }
         case I_NEG: {
-            Val a = eval(&in->a);
-            set_var(in->dst, is_float(a) ? mk_flt(-a.f) : wrap32(-a.i));
-            break;
+            Val a = eval(&in->a), r;
+            if (is_float(a)) { r.k = V_FLT; r.f = -a.f; r.i = 0; } else r = wrap32(-a.i);
+            vars[in->dst] = r; isset[in->dst] = 1; break;
         }
         case I_BIN: {
             Val a = eval(&in->a), b = eval(&in->b), r;
             const char *op = in->op;
             int fl = is_float(a) || is_float(b);
             r = mk_int(0);
-            if (!strcmp(op, "&&")) r = mk_bool(truthy(a) && truthy(b));
-            else if (!strcmp(op, "||")) r = mk_bool(truthy(a) || truthy(b));
+            if (!strcmp(op, "&&")) { r = mk_int(truthy(a) && truthy(b)); r.k = V_BOOL; }
+            else if (!strcmp(op, "||")) { r = mk_int(truthy(a) || truthy(b)); r.k = V_BOOL; }
             else if (!strcmp(op, "<") || !strcmp(op, ">") || !strcmp(op, "<=") || !strcmp(op, ">=") ||
                      !strcmp(op, "==") || !strcmp(op, "!=")) {
                 int c;
@@ -480,12 +551,12 @@ static int execute(void) {
                     c = !strcmp(op, "<") ? x < y : !strcmp(op, ">") ? x > y : !strcmp(op, "<=") ? x <= y :
                         !strcmp(op, ">=") ? x >= y : !strcmp(op, "==") ? x == y : x != y;
                 }
-                r = mk_bool(c);
+                r = mk_int(c); r.k = V_BOOL;
             } else if (fl) {
                 double x = as_f(a), y = as_f(b), z = 0;
                 switch (op[0]) { case '+': z = x + y; break; case '-': z = x - y; break;
                                  case '*': z = x * y; break; case '/': z = x / y; break; }
-                r = mk_flt(z);
+                r.k = V_FLT; r.f = z; r.i = 0;
             } else {
                 long long x = a.i, y = b.i, z = 0;
                 switch (op[0]) {
@@ -497,7 +568,7 @@ static int execute(void) {
                 }
                 r = wrap32(z);
             }
-            set_var(in->dst, r);
+            vars[in->dst] = r; isset[in->dst] = 1;
             break;
         }
         }
@@ -513,19 +584,9 @@ int interp_run(FILE *tac) {
         ln++;
         if (!parse_line(line, ln)) { fprintf(stderr, "Runtime error: cannot understand TAC line %d\n", ln); return 1; }
     }
-    /* resolve calls; collect each function's local slots */
-    for (int i = 0; i < ncode; i++)
-        if (code[i].k == I_CALL)
-            for (int f = 0; f < nfuncs; f++)
-                if (strcmp(funcs[f].name, code[i].fname) == 0) { code[i].func = f; break; }
-    for (int s = 0; s < nnames; s++)
-        if (owner[s] >= 0) {
-            Func *f = &funcs[owner[s]];
-            f->locals = xrealloc(f->locals, (size_t)(f->nlocals + 1) * sizeof *f->locals);
-            f->locals[f->nlocals++] = s;
-        }
     vars  = calloc(nnames ? nnames : 1, sizeof *vars);
     isset = calloc(nnames ? nnames : 1, 1);
-    if (!vars || !isset) { fprintf(stderr, "out of memory\n"); return 2; }
+    arrs  = calloc(narrs ? narrs : 1, sizeof *arrs);
+    if (!vars || !isset || !arrs) { fprintf(stderr, "out of memory\n"); return 2; }
     return execute();
 }
