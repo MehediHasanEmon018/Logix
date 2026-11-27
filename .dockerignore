@@ -1,0 +1,8 @@
+.git
+build
+logix
+logix.exe
+**/node_modules
+experiments/backend/.env
+experiments/backend/data/*.db
+experiments/backend/data/*.db-*
